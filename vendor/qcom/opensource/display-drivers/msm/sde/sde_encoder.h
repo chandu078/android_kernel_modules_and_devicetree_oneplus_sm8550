@@ -190,6 +190,7 @@ enum sde_enc_rc_states {
  *				encoder due to autorefresh concurrency.
  * @ctl_done_supported          boolean flag to indicate the availability of
  *                              ctl done irq support for the hardware
+ * @vsync_event_wq              Queue to wait for the vsync event complete
  */
 struct sde_encoder_virt {
 	struct drm_encoder base;
@@ -268,6 +269,7 @@ struct sde_encoder_virt {
 	uint32_t cur_mode_hdisplay;
 #endif /* OPLUS_FEATURE_DISPLAY */
 	bool ctl_done_supported;
+	wait_queue_head_t vsync_event_wq;
 };
 
 #ifdef OPLUS_FEATURE_DISPLAY

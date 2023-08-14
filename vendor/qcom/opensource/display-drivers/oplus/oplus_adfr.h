@@ -13,7 +13,63 @@
 /* please just only include linux common head file to keep me pure */
 #include <linux/device.h>
 #include <linux/hrtimer.h>
-#include "oplus_display_private_api.h"
+#include "oplus_dsi_support.h"
+#include "oplus_display_panel_common.h"
+
+/* log level config */
+extern unsigned int oplus_vrr_log_level;
+/* dual display id */
+extern unsigned int oplus_ofp_display_id;
+/* debug log switch */
+extern unsigned int oplus_dsi_log_type;
+/* dynamic trace enable */
+extern unsigned int oplus_display_trace_enable;
+
+/* vrr debug log */
+#define VRR_ERR(fmt, arg...)	\
+	do {	\
+		if (oplus_vrr_log_level >= OPLUS_LOG_LEVEL_ERR)	\
+			pr_err("[kVRR][%u][ERR][%s:%d] " pr_fmt(fmt), oplus_ofp_display_id, __func__, __LINE__, ##arg);	\
+	} while (0)
+
+#define VRR_WARN(fmt, arg...)	\
+	do {	\
+		if (oplus_vrr_log_level >= OPLUS_LOG_LEVEL_WARN)	\
+			pr_warn("[kVRR][%u][WARN][%s:%d] " pr_fmt(fmt), oplus_ofp_display_id, __func__, __LINE__, ##arg);	\
+	} while (0)
+
+#define VRR_INFO(fmt, arg...)	\
+	do {	\
+		if (oplus_vrr_log_level >= OPLUS_LOG_LEVEL_INFO)	\
+			pr_info("[kVRR][%u][INFO][%s:%d] " pr_fmt(fmt), oplus_ofp_display_id, __func__, __LINE__, ##arg);	\
+	} while (0)
+
+#define VRR_DEBUG(fmt, arg...)	\
+	do {	\
+		if ((oplus_vrr_log_level >= OPLUS_LOG_LEVEL_DEBUG) && (oplus_dsi_log_type & OPLUS_DEBUG_LOG_VRR))	\
+			pr_info("[kVRR][%u][DEBUG][%s:%d] " pr_fmt(fmt), oplus_ofp_display_id, __func__, __LINE__, ##arg);	\
+		else	\
+			pr_debug("[kVRR][%u][DEBUG][%s:%d] " pr_fmt(fmt), oplus_ofp_display_id, __func__, __LINE__, ##arg);	\
+	} while (0)
+
+/* vrr debug trace */
+#define OPLUS_VRR_TRACE_BEGIN(name)	\
+	do {	\
+		if (oplus_display_trace_enable & OPLUS_DISPLAY_VRR_TRACE_ENABLE)	\
+			SDE_ATRACE_BEGIN(name);	\
+	} while (0)
+
+#define OPLUS_VRR_TRACE_END(name)	\
+	do {	\
+		if (oplus_display_trace_enable & OPLUS_DISPLAY_VRR_TRACE_ENABLE)	\
+			SDE_ATRACE_END(name);	\
+	} while (0)
+
+#define OPLUS_VRR_TRACE_INT(name, value)	\
+	do {	\
+		if (oplus_display_trace_enable & OPLUS_DISPLAY_VRR_TRACE_ENABLE)	\
+			SDE_ATRACE_INT(name, value);	\
+	} while (0)
 
 enum oplus_vsync_mode {
 	OPLUS_DOUBLE_TE_VSYNC = 0,

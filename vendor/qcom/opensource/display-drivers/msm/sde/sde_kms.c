@@ -1841,7 +1841,7 @@ static int _sde_kms_setup_displays(struct drm_device *dev,
 		.pre_kickoff  = dsi_conn_pre_kickoff,
 		.clk_ctrl = dsi_display_clk_ctrl,
 #ifdef OPLUS_FEATURE_DISPLAY
-		.set_power = dsi_display_oplus_set_power,
+		.set_power = oplus_display_set_power,
 #else /* OPLUS_FEATURE_DISPLAY */
 		.set_power = dsi_display_set_power,
 #endif /* OPLUS_FEATURE_DISPLAY */

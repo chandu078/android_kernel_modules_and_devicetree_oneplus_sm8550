@@ -34,10 +34,10 @@ static int oplus_panel_find_vreg_by_name(const char *name)
 
 	for (i = 0; i < count; i++) {
 		vreg = &dsi_reg->vregs[i];
-		pr_err("%s : find  %s", __func__, vreg->vreg_name);
+		LCD_INFO("finding: %s\n", vreg->vreg_name);
 
 		if (!strcmp(vreg->vreg_name, name)) {
-			pr_err("%s : find the vreg %s", __func__, name);
+			LCD_INFO("find the vreg: %s\n", name);
 			return i;
 
 		} else {
@@ -45,7 +45,7 @@ static int oplus_panel_find_vreg_by_name(const char *name)
 		}
 	}
 
-	pr_err("%s : dose not find the vreg [%s]", __func__, name);
+	LCD_ERR("dose not find the vreg: %s\n", name);
 
 	return -EINVAL;
 }
@@ -59,7 +59,7 @@ int dsi_panel_parse_panel_power_cfg(struct dsi_panel *panel)
 	u32 *panel_vol = NULL;
 	struct dsi_parser_utils *utils = &panel->utils;
 
-	pr_err("[%s] \n", __func__);
+	LCD_INFO("parse panel power config\n");
 
 	if (!strcmp(panel->type, "primary")) {
 		panel_vol = &panel_vol_bak[PANEL_VOLTAGE_ID_VDDI].voltage_id;
@@ -67,7 +67,8 @@ int dsi_panel_parse_panel_power_cfg(struct dsi_panel *panel)
 				panel_vol, PANEL_VOLTAGE_VALUE_COUNT);
 
 		if (rc) {
-			pr_err("[%s] failed to parse panel_voltage vddi\n", panel->name);
+			LCD_ERR("[%s] failed to parse panel_voltage vddi\n",
+					panel->oplus_priv.vendor_name);
 			goto error;
 		}
 
@@ -75,11 +76,13 @@ int dsi_panel_parse_panel_power_cfg(struct dsi_panel *panel)
 				&name_vddi);
 
 		if (rc) {
-			pr_err("[%s] failed to parse vddi name\n", panel->name);
+			LCD_ERR("[%s] failed to parse vddi name\n",
+					panel->oplus_priv.vendor_name);
 			goto error;
 
 		} else {
-			pr_err("[%s] surccess to parse vddi name %s\n", panel->name, name_vddi);
+			LCD_INFO("[%s] surccess to parse vddi name %s\n",
+					panel->oplus_priv.vendor_name, name_vddi);
 			strcpy(panel_vol_bak[PANEL_VOLTAGE_ID_VDDI].pwr_name, name_vddi);
 		}
 
@@ -88,7 +91,8 @@ int dsi_panel_parse_panel_power_cfg(struct dsi_panel *panel)
 				panel_vol, PANEL_VOLTAGE_VALUE_COUNT);
 
 		if (rc) {
-			pr_err("[%s] failed to parse panel_voltage vddr\n", panel->name);
+			LCD_ERR("[%s] failed to parse panel_voltage vddr\n",
+					panel->oplus_priv.vendor_name);
 			goto error;
 		}
 
@@ -96,16 +100,18 @@ int dsi_panel_parse_panel_power_cfg(struct dsi_panel *panel)
 				&name_vddr);
 
 		if (rc) {
-			pr_err("[%s] failed to parse vddr name\n", panel->name);
+			LCD_ERR("[%s] failed to parse vddr name\n",
+					panel->oplus_priv.vendor_name);
 			goto error;
 
 		} else {
-			pr_err("[%s] surccess to parse vddr name %s\n", panel->name, name_vddr);
+			LCD_INFO("[%s] surccess to parse vddr name %s\n",
+					panel->oplus_priv.vendor_name, name_vddr);
 			strcpy(panel_vol_bak[PANEL_VOLTAGE_ID_VDDR].pwr_name, name_vddr);
 		}
 		/* add for debug */
 		for (i = 0; i < PANEL_VOLTAGE_ID_MAX; i++) {
-			pr_err("[%s] panel_voltage[%d] = %d,%d,%d,%d,%s\n", __func__, i,
+			LCD_INFO("panel_voltage[%d] = %d,%d,%d,%d,%s\n", i,
 					panel_vol_bak[i].voltage_id,
 					panel_vol_bak[i].voltage_min, panel_vol_bak[i].voltage_current,
 					panel_vol_bak[i].voltage_max, panel_vol_bak[i].pwr_name);
@@ -135,7 +141,7 @@ static u32 oplus_panel_update_current_voltage(u32 id)
 	pwr_id = oplus_panel_find_vreg_by_name(panel_vol_bak[id].pwr_name);
 
 	if (pwr_id < 0) {
-		pr_err("%s: can't find the pwr_id, please check the vreg name\n", __func__);
+		LCD_ERR("can't find the pwr_id, please check the vreg name\n");
 		return pwr_id;
 	}
 
@@ -157,11 +163,11 @@ int oplus_display_panel_get_pwr(void *data)
 	u32 vol_id = ((panel_vol->panel_id & 0x0F) - 1);
 
 	if (vol_id < 0 || vol_id >= PANEL_VOLTAGE_ID_MAX) {
-		pr_err("%s error id: [id] = %d\n", __func__, vol_id);
+		LCD_ERR("error id: %d\n", vol_id);
 		return -EINVAL;
 	}
 
-	pr_err("%s : [id] = %d\n", __func__, vol_id);
+	LCD_INFO("id = %d\n", vol_id);
 	panel_vol->panel_min = panel_vol_bak[vol_id].voltage_min;
 	panel_vol->panel_max = panel_vol_bak[vol_id].voltage_max;
 	panel_vol->panel_cur = panel_vol_bak[vol_id].voltage_current;
@@ -170,11 +176,11 @@ int oplus_display_panel_get_pwr(void *data)
 		vol_id >= PANEL_VOLTAGE_ID_VDDI) {
 		ret = oplus_panel_update_current_voltage(vol_id);
 		if (ret < 0) {
-			pr_err("%s : update_current_voltage error = %d\n", __func__, ret);
+			LCD_ERR("update_current_voltage error = %d\n", ret);
 			return ret;
 		} else {
 			panel_vol->panel_cur = ret;
-			pr_err("%s : [id min cur max] = [%u32, %u32, %u32, %u32]\n", __func__,
+			LCD_ERR("[id min cur max] = [%u32, %u32, %u32, %u32]\n",
 				vol_id, panel_vol->panel_min,
 				panel_vol->panel_cur, panel_vol->panel_max);
 			return 0;
@@ -196,12 +202,12 @@ int oplus_display_panel_set_pwr(void *data)
 	panel_vol_value = panel_vol->panel_vol;
 
 	if (panel_vol_id < 0 || panel_vol_id >= PANEL_VOLTAGE_ID_MAX) {
-		pr_err("%s error id: [id] = %d\n", __func__, panel_vol_id);
+		LCD_ERR("error id: %d\n", panel_vol_id);
 		return -EINVAL;
 	}
 
-	pr_err("debug for %s, id = %d value = %d\n",
-			__func__, panel_vol_id, panel_vol_value);
+	LCD_INFO("id = %d, value = %d\n",
+			panel_vol_id, panel_vol_value);
 	if (panel_vol_value < panel_vol_bak[panel_vol_id].voltage_min ||
 			panel_vol_value > panel_vol_bak[panel_vol_id].voltage_max)
 		return -EINVAL;
@@ -215,7 +221,7 @@ int oplus_display_panel_set_pwr(void *data)
 	}
 
 	if (panel_vol_id == PANEL_VOLTAGE_ID_VG_BASE) {
-		pr_err("%s: set the VGH_L pwr = %d \n", __func__, panel_vol_value);
+		LCD_ERR("set the VGH_L pwr = %d \n", panel_vol_value);
 		panel_pwr_vg_base = panel_vol_value;
 		return rc;
 	}
@@ -224,8 +230,8 @@ int oplus_display_panel_set_pwr(void *data)
 
 	pwr_id = oplus_panel_find_vreg_by_name(panel_vol_bak[panel_vol_id].pwr_name);
 	if (pwr_id < 0) {
-		pr_err("%s: can't find the vreg name, please re-check vreg name: %s \n",
-			__func__, panel_vol_bak[panel_vol_id].pwr_name);
+		LCD_ERR("can't find the vreg name, please re-check vreg name: %s \n",
+			panel_vol_bak[panel_vol_id].pwr_name);
 		return pwr_id;
 	}
 
@@ -234,7 +240,7 @@ int oplus_display_panel_set_pwr(void *data)
 	rc = regulator_set_voltage(dsi_reg->vreg, panel_vol_value, panel_vol_value);
 
 	if (rc) {
-		pr_err("Set voltage(%s) fail, rc=%d\n",
+		LCD_ERR("Set voltage(%s) fail, rc=%d\n",
 			 dsi_reg->vreg_name, rc);
 		return -EINVAL;
 	}
@@ -242,7 +248,7 @@ int oplus_display_panel_set_pwr(void *data)
 	return rc;
 }
 
-int __oplus_display_set_power_status(int status)
+int __oplus_set_request_power_status(int status)
 {
 	mutex_lock(&oplus_power_status_lock);
 
@@ -257,8 +263,8 @@ int __oplus_display_set_power_status(int status)
 int oplus_display_panel_get_power_status(void *data) {
 	uint32_t *power_status = data;
 
-	printk(KERN_INFO "oplus_display_get_power_status = %d\n", get_oplus_display_power_status());
-	(*power_status) = get_oplus_display_power_status();
+	LCD_INFO("oplus_display_get_power_status = %d\n", __oplus_get_power_status());
+	(*power_status) = __oplus_get_power_status();
 
 	return 0;
 }
@@ -266,8 +272,8 @@ int oplus_display_panel_get_power_status(void *data) {
 int oplus_display_panel_set_power_status(void *data) {
 	uint32_t *temp_save = data;
 
-	printk(KERN_INFO "%s oplus_display_set_power_status = %d\n", __func__, (*temp_save));
-	__oplus_display_set_power_status((*temp_save));
+	LCD_INFO("oplus_display_set_power_status = %d\n", (*temp_save));
+	__oplus_set_request_power_status((*temp_save));
 
 	return 0;
 }
@@ -277,9 +283,9 @@ int oplus_display_panel_regulator_control(void *data) {
 	uint32_t temp_save = (*temp_save_user);
 	struct dsi_display *temp_display;
 
-	printk(KERN_INFO "%s oplus_display_regulator_control = %d\n", __func__, temp_save);
+	LCD_INFO("oplus_display_regulator_control = %d\n", temp_save);
 	if(get_main_display() == NULL) {
-		printk(KERN_INFO "oplus_display_regulator_control and main display is null");
+		LCD_ERR("display is null\n");
 		return -1;
 	}
 	temp_display = get_main_display();

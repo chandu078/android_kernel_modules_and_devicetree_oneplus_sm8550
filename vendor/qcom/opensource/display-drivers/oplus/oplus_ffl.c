@@ -46,7 +46,7 @@ void oplus_ffl_set(int enable)
 	mutex_lock(&oplus_ffl_lock);
 
 	if (enable != is_ffl_enable) {
-		pr_debug("set_ffl_setting need change is_ffl_enable\n");
+		LCD_DEBUG("set_ffl_setting need change is_ffl_enable\n");
 		is_ffl_enable = enable;
 
 		if ((is_ffl_enable == FFL_TRIGGLE_CONTROL) && ffl_work_running) {
@@ -77,7 +77,7 @@ int oplus_display_panel_set_ffl(void *buf)
 {
 	unsigned int *enable = buf;
 
-	printk(KERN_INFO "%s oplus_set_ffl_setting = %d\n", __func__, (*enable));
+	LCD_INFO("oplus_set_ffl_setting = %d\n", (*enable));
 	oplus_ffl_set(*enable);
 
 	return 0;
@@ -91,7 +91,7 @@ void oplus_ffl_setting_thread(struct kthread_work *work)
 	int system_backlight_target;
 	int rc;
 
-	if (get_oplus_display_power_status() == OPLUS_DISPLAY_POWER_OFF) {
+	if (__oplus_get_power_status() == OPLUS_DISPLAY_POWER_OFF) {
 		return;
 	}
 
@@ -100,7 +100,7 @@ void oplus_ffl_setting_thread(struct kthread_work *work)
 	}
 
 	if (!display || !display->panel) {
-		pr_err("failed to find display panel \n");
+		LCD_ERR("failed to find display panel \n");
 		return;
 	}
 
@@ -112,7 +112,7 @@ void oplus_ffl_setting_thread(struct kthread_work *work)
 			DSI_CORE_CLK, DSI_CLK_ON);
 
 	if (rc) {
-		pr_err("[%s] failed to enable DSI core clocks, rc=%d\n",
+		LCD_ERR("[%s] failed to enable DSI core clocks, rc=%d\n",
 				display->name, rc);
 		return;
 	}
@@ -193,7 +193,7 @@ void oplus_ffl_setting_thread(struct kthread_work *work)
 			DSI_CORE_CLK, DSI_CLK_OFF);
 
 	if (rc) {
-		pr_err("[%s] failed to disable DSI core clocks, rc=%d\n",
+		LCD_ERR("[%s] failed to disable DSI core clocks, rc=%d\n",
 				display->name, rc);
 	}
 }
@@ -232,7 +232,7 @@ int oplus_ffl_thread_init(void)
 			&oplus_ffl_worker, "oplus_ffl");
 
 	if (IS_ERR(oplus_ffl_thread)) {
-		pr_err("fail to start oplus_ffl_thread\n");
+		LCD_ERR("fail to start oplus_ffl_thread\n");
 		oplus_ffl_thread = NULL;
 		return -1;
 	}

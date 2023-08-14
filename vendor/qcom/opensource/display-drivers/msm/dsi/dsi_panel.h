@@ -132,6 +132,9 @@ struct dsi_pinctrl_info {
 	/* OPLUS_FEATURE_ADFR, qcom patch for two TE source */
 	struct pinctrl_state *te1_active;
 	struct pinctrl_state *te1_suspend;
+	/* oplus panel pinctrl */
+	struct pinctrl_state *oplus_panel_active;
+	struct pinctrl_state *oplus_panel_suspend;
 #endif /* OPLUS_FEATURE_DISPLAY */
 };
 
@@ -164,6 +167,8 @@ struct dsi_panel_oplus_privite {
 	int iris_pw_enable;
 	int iris_pw_rst_gpio;
 	int iris_pw_0p9_en_gpio;
+	bool pwm_turbo_support;
+	bool pwm_turbo_enabled;
 	bool ffc_enabled;
 	u32 ffc_delay_frames;
 	u32 ffc_mode_count;
@@ -171,7 +176,8 @@ struct dsi_panel_oplus_privite {
 	struct oplus_clk_osc *clk_osc_seq;
 	u32 clk_rate_cur;
 	u32 osc_rate_cur;
-	bool gpio_pre_enabled;
+	bool gpio_pre_on;
+	bool pinctrl_enabled;
 /********************************************
 	fp_type usage:
 	bit(0):lcd capacitive fingerprint(aod/fod are not supported)

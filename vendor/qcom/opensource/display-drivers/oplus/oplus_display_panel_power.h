@@ -54,6 +54,6 @@ int oplus_display_panel_get_pwr(void *data);
 int oplus_display_panel_get_power_status(void *data);
 int oplus_display_panel_set_power_status(void *data);
 int oplus_display_panel_regulator_control(void *data);
-int __oplus_display_set_power_status(int status);
+int __oplus_set_request_power_status(int status);
 
 #endif /* _OPLUS_DISPLAY_PANEL_POWER_H_ */

@@ -169,9 +169,6 @@ msm_drm-$(CONFIG_DRM_OPLUS) += ../oplus/oplus_dsi_support.o \
 	../oplus/oplus_display_panel_feature.o \
 	../oplus/oplus_adfr.o \
 	../oplus/oplus_display_interface.o
-
-msm_drm-$(CONFIG_DRM_OPLUS_NOTIFY) += ../oplus/oplus_notify.o
-
 #endif /* OPLUS_FEATURE_DISPLAY */
 
 msm_drm-$(CONFIG_DRM_MSM_SDE) += sde/sde_crtc.o \

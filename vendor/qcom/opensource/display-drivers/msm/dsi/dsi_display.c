@@ -328,6 +328,9 @@ error:
 	mutex_unlock(&panel->panel_lock);
 
 #ifdef OPLUS_FEATURE_DISPLAY
+	if (!rc)
+		oplus_panel_backlight_notifier(panel, (u32)bl_temp);
+
 	if (oplus_bl_print_window > 0)
 		oplus_bl_print_window--;
 
@@ -1035,7 +1038,7 @@ static int dsi_display_validate_status(struct dsi_display_ctrl *ctrl,
 		 * check for validity of the data read back.
 		 */
 #ifdef OPLUS_FEATURE_DISPLAY
-		rc = oplus_display_validate_reg_read(display->panel);
+		rc = oplus_panel_validate_reg_read(display->panel);
 #else /* OPLUS_FEATURE_DISPLAY */
 		rc = dsi_display_validate_reg_read(display->panel);
 #endif /* OPLUS_FEATURE_DISPLAY */
@@ -5493,7 +5496,12 @@ static int dsi_display_set_mode_sub(struct dsi_display *display,
 		dsi_display_validate_dms_fps(display->panel->cur_mode, mode);
 	}
 
-	if (priv_info->phy_timing_len) {
+	if (priv_info->phy_timing_len &&
+		!atomic_read(&display->clkrate_change_pending)) {
+		/*
+		 * In case of clkrate change, the PHY timing update will happen
+		 * together with the clock update.
+		 */
 		display_for_each_ctrl(i, display) {
 			ctrl = &display->ctrl[i];
 			 rc = dsi_phy_set_timing_params(ctrl->phy,
@@ -5937,12 +5945,12 @@ static int dsi_display_bind(struct device *dev,
 	}
 
 #ifdef OPLUS_FEATURE_DISPLAY
-	if(0 != oplus_set_display_vendor(display)) {
+	if(0 != oplus_display_set_vendor(display)) {
 		pr_err("maybe send a null point to oplus display manager\n");
 	}
 
 	/* Add for SUA feature request */
-	if(is_silence_reboot()) {
+	if(oplus_is_silence_reboot()) {
 		lcd_closebl_flag = 1;
 	}
 #endif /* OPLUS_FEATURE_DISPLAY */
@@ -6303,7 +6311,8 @@ static struct device_node *_iris_dsi_display_get_panel_node(struct platform_devi
 	if (index < 0 || index >= MAX_DSI_ACTIVE_DISPLAY)
 		return NULL;
 
-	if (is_factory_boot() && (!strcmp(boot_displays[DSI_PRIMARY].name, "qcom,mdss_dsi_vtdr6130_fhd_plus_vid"))) {
+	if (oplus_is_factory_boot() &&
+			(!strcmp(boot_displays[DSI_PRIMARY].name, "qcom,mdss_dsi_vtdr6130_fhd_plus_vid"))) {
 		DSI_INFO("enter FTM mode and no connect with panel!\n");
 		return NULL;
 	}
@@ -8956,8 +8965,11 @@ int dsi_display_pre_kickoff(struct drm_connector *connector,
 		struct dsi_display *display,
 		struct msm_display_kickoff_params *params)
 {
+	struct dsi_display_mode *mode;
 	int rc = 0, ret = 0;
 	int i;
+
+	mode = display->panel->cur_mode;
 
 	/* check and setup MISR */
 	if (display->misr_enable)
@@ -8984,6 +8996,19 @@ int dsi_display_pre_kickoff(struct drm_connector *connector,
 			ret = dsi_ctrl_wait_for_cmd_mode_mdp_idle(ctrl);
 			if (ret)
 				goto wait_failure;
+		}
+
+		if (mode->priv_info->phy_timing_len) {
+			display_for_each_ctrl(i, display) {
+				struct dsi_display_ctrl *ctrl;
+				ctrl = &display->ctrl[i];
+				ret = dsi_phy_set_timing_params(ctrl->phy,
+						mode->priv_info->phy_timing_val,
+						mode->priv_info->phy_timing_len,
+						true);
+				if (ret)
+					DSI_ERR("failed to add DSI PHY timing params\n");
+			}
 		}
 
 		/*
@@ -9156,7 +9181,7 @@ int dsi_display_enable(struct dsi_display *display)
 		dsi_display_panel_id_notification(display);
 #ifdef OPLUS_FEATURE_DISPLAY
 		oplus_display_update_current_display();
-		set_oplus_display_power_status(OPLUS_DISPLAY_POWER_ON);
+		__oplus_set_power_status(OPLUS_DISPLAY_POWER_ON);
 		display->panel->power_mode = SDE_MODE_DPMS_ON;
 #endif /* OPLUS_FEATURE_DISPLAY */
 		return 0;
@@ -9391,9 +9416,6 @@ error:
 int dsi_display_disable(struct dsi_display *display)
 {
 	int rc = 0;
-#ifdef OPLUS_FEATURE_DISPLAY
-	struct msm_drm_notifier notifier_data;
-#endif /* OPLUS_FEATURE_DISPLAY */
 
 	if (!display) {
 		DSI_ERR("Invalid params\n");
@@ -9469,8 +9491,8 @@ int dsi_display_disable(struct dsi_display *display)
 	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT);
 
 #ifdef OPLUS_FEATURE_DISPLAY
-	msm_drm_notifier_call_chain(MSM_DRM_EVENT_BLANK, &notifier_data);
-	oplus_panel_event_notification_trigger(display, DRM_PANEL_EVENT_BLANK);
+	oplus_panel_event_data_notifier_trigger(display->panel,
+			DRM_PANEL_EVENT_BLANK, 0, true);
 #endif /* OPLUS_FEATURE_DISPLAY */
 	return rc;
 }

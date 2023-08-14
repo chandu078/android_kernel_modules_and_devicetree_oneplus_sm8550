@@ -164,6 +164,7 @@ int oplus_ofp_property_update(void *sde_connector, void *sde_connector_state, in
 
 /* -------------------- fod -------------------- */
 int oplus_ofp_parse_dtsi_config(void *dsi_display_mode, void *dsi_parser_utils);
+int oplus_ofp_send_hbm_state_event(unsigned int hbm_state);
 int oplus_ofp_hbm_handle(void *sde_encoder_virt);
 int oplus_ofp_cmd_post_wait(void *dsi_display_mode, void *dsi_cmd_desc, enum dsi_cmd_set_type type);
 int oplus_ofp_panel_hbm_status_update(void *sde_encoder_phys);

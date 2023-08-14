@@ -25,86 +25,92 @@ int oplus_panel_parse_bl_config(struct dsi_panel *panel)
 
 #if defined(CONFIG_PXLW_IRIS)
 	if (iris_is_chip_supported() && (!strcmp(panel->type, "secondary"))) {
-		pr_info("%s: iris secondary panel no need config!\n", __func__);
+		LCD_INFO("iris secondary panel no need config\n");
 		return 0;
 	}
 #endif
 
 	rc = utils->read_u32(utils->data, "oplus,dsi-bl-normal-max-level", &val);
 	if (rc) {
-		DSI_INFO("[%s] oplus,dsi-bl-normal-max-level undefined, default to bl max\n",
-				panel->name);
+		LCD_INFO("[%s] oplus,dsi-bl-normal-max-level undefined, default to bl max\n",
+				panel->oplus_priv.vendor_name);
 		panel->bl_config.bl_normal_max_level = panel->bl_config.bl_max_level;
 	} else {
 		panel->bl_config.bl_normal_max_level = val;
 	}
-	DSI_INFO("[%s] bl_max_level=%d\n", panel->name, panel->bl_config.bl_max_level);
+	LCD_INFO("[%s] bl_max_level=%d\n", panel->oplus_priv.vendor_name,
+			panel->bl_config.bl_max_level);
 
 	rc = utils->read_u32(utils->data, "oplus,dsi-brightness-normal-max-level",
 		&val);
 	if (rc) {
-		DSI_INFO("[%s] oplus,dsi-brightness-normal-max-level undefined, default to brightness max\n",
-				panel->name);
+		LCD_INFO("[%s] oplus,dsi-brightness-normal-max-level undefined, default to brightness max\n",
+				panel->oplus_priv.vendor_name);
 		panel->bl_config.brightness_normal_max_level = panel->bl_config.brightness_max_level;
 	} else {
 		panel->bl_config.brightness_normal_max_level = val;
 	}
-	DSI_INFO("[%s] brightness_normal_max_level=%d\n",
-			panel->name, panel->bl_config.brightness_normal_max_level);
+	LCD_INFO("[%s] brightness_normal_max_level=%d\n",
+			panel->oplus_priv.vendor_name,
+			panel->bl_config.brightness_normal_max_level);
 
 	rc = utils->read_u32(utils->data, "oplus,dsi-brightness-default-level", &val);
 	if (rc) {
-		DSI_INFO("[%s] oplus,dsi-brightness-default-level undefined, default to brightness normal max\n",
-				panel->name);
+		LCD_INFO("[%s] oplus,dsi-brightness-default-level undefined, default to brightness normal max\n",
+				panel->oplus_priv.vendor_name);
 		panel->bl_config.brightness_default_level = panel->bl_config.brightness_normal_max_level;
 	} else {
 		panel->bl_config.brightness_default_level = val;
 	}
-	DSI_INFO("[%s] brightness_default_level=%d\n",
-			panel->name, panel->bl_config.brightness_default_level);
+	LCD_INFO("[%s] brightness_default_level=%d\n",
+			panel->oplus_priv.vendor_name,
+			panel->bl_config.brightness_default_level);
 
 	rc = utils->read_u32(utils->data, "oplus,dsi-dc-backlight-threshold", &val);
 	if (rc) {
-		DSI_INFO("[%s] oplus,dsi-dc-backlight-threshold undefined, default to 260\n",
-				panel->name);
+		LCD_INFO("[%s] oplus,dsi-dc-backlight-threshold undefined, default to 260\n",
+				panel->oplus_priv.vendor_name);
 		panel->bl_config.dc_backlight_threshold = 260;
 		panel->bl_config.oplus_dc_mode = false;
 	} else {
 		panel->bl_config.dc_backlight_threshold = val;
 		panel->bl_config.oplus_dc_mode = true;
 	}
-	DSI_INFO("[%s] dc_backlight_threshold=%d, oplus_dc_mode=%d\n",
-			panel->name, panel->bl_config.dc_backlight_threshold,
+	LCD_INFO("[%s] dc_backlight_threshold=%d, oplus_dc_mode=%d\n",
+			panel->oplus_priv.vendor_name,
+			panel->bl_config.dc_backlight_threshold,
 			panel->bl_config.oplus_dc_mode);
 
 	rc = utils->read_u32(utils->data, "oplus,dsi-global-hbm-case-id", &val);
 	if (rc) {
-		DSI_INFO("[%s] oplus,dsi-global-hbm-case-id undefined, default to 0\n",
-				panel->name);
+		LCD_INFO("[%s] oplus,dsi-global-hbm-case-id undefined, default to 0\n",
+				panel->oplus_priv.vendor_name);
 		val = GLOBAL_HBM_CASE_NONE;
 	} else if (val >= GLOBAL_HBM_CASE_MAX) {
-		DSI_ERR("[%s] oplus,dsi-global-hbm-case-id is invalid:%d\n",
-				panel->name, val);
+		LCD_ERR("[%s] oplus,dsi-global-hbm-case-id is invalid:%d\n",
+				panel->oplus_priv.vendor_name, val);
 		val = GLOBAL_HBM_CASE_NONE;
 	}
 	panel->bl_config.global_hbm_case_id = val;
-	DSI_INFO("[%s] global_hbm_case_id=%d\n",
-			panel->name, panel->bl_config.global_hbm_case_id);
+	LCD_INFO("[%s] global_hbm_case_id=%d\n",
+			panel->oplus_priv.vendor_name,
+			panel->bl_config.global_hbm_case_id);
 
 	rc = utils->read_u32(utils->data, "oplus,dsi-global-hbm-threshold", &val);
 	if (rc) {
-		DSI_INFO("[%s] oplus,dsi-global-hbm-threshold undefined, default to brightness normal max + 1\n",
-				panel->name);
+		LCD_INFO("[%s] oplus,dsi-global-hbm-threshold undefined, default to brightness normal max + 1\n",
+				panel->oplus_priv.vendor_name);
 		panel->bl_config.global_hbm_threshold = panel->bl_config.brightness_normal_max_level + 1;
 	} else {
 		panel->bl_config.global_hbm_threshold = val;
 	}
-	DSI_INFO("[%s] global_hbm_threshold=%d\n",
-			panel->name, panel->bl_config.global_hbm_threshold);
+	LCD_INFO("[%s] global_hbm_threshold=%d\n",
+			panel->oplus_priv.vendor_name,
+			panel->bl_config.global_hbm_threshold);
 
 	panel->bl_config.global_hbm_scale_mapping = utils->read_bool(utils->data,
 			"oplus,dsi-global-hbm-scale-mapping");
-	DSI_INFO("oplus,dsi-global-hbm-scale-mapping: %s",
+	LCD_INFO("oplus,dsi-global-hbm-scale-mapping: %s\n",
 			panel->bl_config.global_hbm_scale_mapping ? "true" : "false");
 
 	return 0;
@@ -117,13 +123,11 @@ static int oplus_display_panel_dly(struct dsi_panel *panel, bool hbm_switch)
 			enable_hbm_enter_dly_on_flags++;
 		if (0 == oplus_global_hbm_flags) {
 			if (dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_ON)) {
-				DSI_ERR("Failed to send DSI_CMD_DLY_ON commands\n");
 				return 0;
 			}
 			enable_hbm_enter_dly_on_flags = 1;
 		} else if (4 == enable_hbm_enter_dly_on_flags) {
 			if (dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_OFF)) {
-				DSI_ERR("Failed to send DSI_CMD_DLY_OFF commands\n");
 				return 0;
 			}
 			enable_hbm_enter_dly_on_flags = 0;
@@ -131,7 +135,6 @@ static int oplus_display_panel_dly(struct dsi_panel *panel, bool hbm_switch)
 	} else {
 		if (oplus_global_hbm_flags == 1) {
 			if (dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_ON)) {
-				DSI_ERR("Failed to send DSI_CMD_DLY_ON commands\n");
 				return 0;
 			}
 			enable_hbm_exit_dly_on_flags = 1;
@@ -141,7 +144,6 @@ static int oplus_display_panel_dly(struct dsi_panel *panel, bool hbm_switch)
 			if (3 == enable_hbm_exit_dly_on_flags) {
 				enable_hbm_exit_dly_on_flags = 0;
 				if (dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_OFF)) {
-					DSI_ERR("Failed to send DSI_CMD_DLY_OFF commands\n");
 					return 0;
 				}
 			}
@@ -238,11 +240,6 @@ int oplus_panel_global_hbm_mapping(struct dsi_panel *panel, u32 *backlight_level
 		}
 
 		rc = dsi_panel_tx_cmd_set(panel, global_hbm_switch_cmd);
-		if (rc < 0)
-			DSI_ERR("Failed to send DSI_CMD_HBM_%s_SWITCH\n",
-					global_hbm_switch_cmd == DSI_CMD_HBM_ENTER_SWITCH ?
-					"ENTER" : "EXIT");
-
 		oplus_global_hbm_flags = (global_hbm_switch_cmd == DSI_CMD_HBM_ENTER_SWITCH);
 	}
 
@@ -258,5 +255,5 @@ int oplus_display_panel_get_global_hbm_status(void)
 void oplus_display_panel_set_global_hbm_status(int global_hbm_status)
 {
 	oplus_global_hbm_flags = global_hbm_status;
-	DSI_INFO("set oplus_global_hbm_flags = %d\n", global_hbm_status);
+	LCD_INFO("set oplus_global_hbm_flags = %d\n", global_hbm_status);
 }

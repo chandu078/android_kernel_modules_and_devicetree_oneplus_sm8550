@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
@@ -2978,8 +2978,13 @@ static void _sde_encoder_setup_dither(struct sde_encoder_phys *phys)
 	bpp = dsc->config.bits_per_pixel;
 
 	/* disable dither for 10 bpp or 10bpc dsc config */
-	if (bpp == 10 || bpc == 10) {
-		phys->hw_pp->ops.setup_dither(phys->hw_pp, NULL, 0);
+	/* bpp >> 4 because bpp configuration is in 6.4 format */
+	if ((bpp >> 4) == 10 || bpc == 10) {
+		num_lm = sde_rm_topology_get_num_lm(&sde_kms->rm, topology);
+		for (i = 0; i < num_lm; i++) {
+			hw_pp = sde_enc->hw_pp[i];
+			phys->hw_pp->ops.setup_dither(hw_pp, NULL, 0);
+		}
 		return;
 	}
 
@@ -3255,6 +3260,31 @@ void sde_encoder_virt_reset(struct drm_encoder *drm_enc)
 	sde_rm_release(&sde_kms->rm, drm_enc, false);
 }
 
+static void sde_encoder_wait_for_vsync_event_complete(struct sde_encoder_virt *sde_enc)
+{
+	u32 timeout_ms = DEFAULT_KICKOFF_TIMEOUT_MS;
+	int i, ret;
+
+	if (sde_enc->cur_master)
+		timeout_ms = sde_enc->cur_master->kickoff_timeout_ms;
+
+	ret = wait_event_timeout(sde_enc->vsync_event_wq,
+			!sde_enc->vblank_enabled,
+			msecs_to_jiffies(timeout_ms));
+	SDE_EVT32(timeout_ms, ret);
+
+	if (!ret) {
+		SDE_ERROR("vsync event complete timed out %d\n", ret);
+		SDE_EVT32(ret, SDE_EVTLOG_ERROR);
+		for (i = 0; i < sde_enc->num_phys_encs; i++) {
+			struct sde_encoder_phys *phys = sde_enc->phys_encs[i];
+
+			if (phys && phys->ops.control_vblank_irq)
+				phys->ops.control_vblank_irq(phys, false);
+		}
+	}
+}
+
 static void sde_encoder_virt_disable(struct drm_encoder *drm_enc)
 {
 	struct sde_encoder_virt *sde_enc = NULL;
@@ -3341,6 +3371,13 @@ static void sde_encoder_virt_disable(struct drm_encoder *drm_enc)
 		sde_encoder_resource_control(drm_enc,
 				SDE_ENC_RC_EVENT_PRE_STOP);
 	}
+
+	/*
+	 * wait for any pending vsync timestamp event to sf
+	 * to ensure vbalnk irq is disabled.
+	 */
+	if (sde_enc->vblank_enabled)
+		sde_encoder_wait_for_vsync_event_complete(sde_enc);
 
 	/*
 	 * disable dce after the transfer is complete (for command mode)
@@ -3688,6 +3725,9 @@ void sde_encoder_register_vblank_callback(struct drm_encoder *drm_enc,
 			phys->ops.control_vblank_irq(phys, enable);
 	}
 	sde_enc->vblank_enabled = enable;
+
+	if (!enable)
+		wake_up_all(&sde_enc->vsync_event_wq);
 }
 
 void sde_encoder_register_frame_event_callback(struct drm_encoder *drm_enc,
@@ -4983,7 +5023,10 @@ int oplus_sync_panel_brightness_v2(struct drm_encoder *drm_enc)
 			SDE_EVT32(us_per_frame, last_te_timestamp, delay);
 			usleep_range(delay, delay + 100);
 		}
-
+		if ((ktime_to_us(ktime_sub(ktime_get(), last_te_timestamp)) % us_per_frame) > (us_per_frame - DEBOUNCE_TIME)) {
+			SDE_EVT32(us_per_frame, last_te_timestamp);
+			usleep_range(DEBOUNCE_TIME + vsync_width, DEBOUNCE_TIME + 100 + vsync_width);
+		}
 		snprintf(tag_name, sizeof(tag_name), "%s: %d", display->display_type, brightness);
 		SDE_ATRACE_BEGIN(tag_name);
 		rc = oplus_set_brightness(c_conn->bl_device, brightness);
@@ -6076,6 +6119,7 @@ struct drm_encoder *sde_encoder_init(struct drm_device *dev, struct msm_display_
 		sde_enc->frame_trigger_mode = FRAME_DONE_WAIT_POSTED_START;
 
 	mutex_init(&sde_enc->rc_lock);
+	init_waitqueue_head(&sde_enc->vsync_event_wq);
 	kthread_init_delayed_work(&sde_enc->delayed_off_work,
 			sde_encoder_off_work);
 	sde_enc->vblank_enabled = false;

@@ -19,6 +19,10 @@
 #include "oplus_onscreenfingerprint.h"
 #endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 
+/* log level config */
+unsigned int oplus_lcd_log_level = OPLUS_LOG_LEVEL_DEBUG;
+EXPORT_SYMBOL(oplus_lcd_log_level);
+
 static enum oplus_display_support_list  oplus_display_vendor =
 		OPLUS_DISPLAY_UNKNOW;
 static enum oplus_display_power_status oplus_display_status =
@@ -46,14 +50,14 @@ static int oplus_display_notifier_call_chain(unsigned long val, void *v)
 	return blocking_notifier_call_chain(&oplus_display_notifier_list, val, v);
 }
 
-bool is_oplus_correct_display(enum oplus_display_support_list lcd_name)
+bool oplus_is_correct_display(enum oplus_display_support_list lcd_name)
 {
 	return (oplus_display_vendor == lcd_name ? true : false);
 }
 
-bool is_silence_reboot(void)
+bool oplus_is_silence_reboot(void)
 {
-	pr_err("%s get_boot_mode=%d!", __func__, get_boot_mode());
+	LCD_INFO("get_boot_mode = %d\n", get_boot_mode());
 	if ((MSM_BOOT_MODE__SILENCE == get_boot_mode())
 			|| (MSM_BOOT_MODE__SAU == get_boot_mode())) {
 		return true;
@@ -62,11 +66,11 @@ bool is_silence_reboot(void)
 		return false;
 	}
 }
-EXPORT_SYMBOL(is_silence_reboot);
+EXPORT_SYMBOL(oplus_is_silence_reboot);
 
-bool is_factory_boot(void)
+bool oplus_is_factory_boot(void)
 {
-	pr_err("%s get_boot_mode=%d!", __func__, get_boot_mode());
+	LCD_INFO("get_boot_mode = %d\n", get_boot_mode());
 	if ((MSM_BOOT_MODE__FACTORY == get_boot_mode())
 			|| (MSM_BOOT_MODE__RF == get_boot_mode())
 			|| (MSM_BOOT_MODE__WLAN == get_boot_mode())
@@ -76,9 +80,9 @@ bool is_factory_boot(void)
 		return false;
 	}
 }
-EXPORT_SYMBOL(is_factory_boot);
+EXPORT_SYMBOL(oplus_is_factory_boot);
 
-void notifier_oplus_display_early_status(enum oplus_display_power_status
+void oplus_display_notifier_early_status(enum oplus_display_power_status
 					power_status)
 {
 	int blank;
@@ -92,7 +96,6 @@ void notifier_oplus_display_early_status(enum oplus_display_power_status
 		oplus_display_notifier_call_chain(OPLUS_DISPLAY_EARLY_EVENT_BLANK,
 				&oplus_notifier_data);
 		break;
-
 	case OPLUS_DISPLAY_POWER_DOZE:
 		blank = OPLUS_DISPLAY_POWER_DOZE;
 		oplus_notifier_data.data = &blank;
@@ -100,7 +103,6 @@ void notifier_oplus_display_early_status(enum oplus_display_power_status
 		oplus_display_notifier_call_chain(OPLUS_DISPLAY_EARLY_EVENT_BLANK,
 				&oplus_notifier_data);
 		break;
-
 	case OPLUS_DISPLAY_POWER_DOZE_SUSPEND:
 		blank = OPLUS_DISPLAY_POWER_DOZE_SUSPEND;
 		oplus_notifier_data.data = &blank;
@@ -108,7 +110,6 @@ void notifier_oplus_display_early_status(enum oplus_display_power_status
 		oplus_display_notifier_call_chain(OPLUS_DISPLAY_EARLY_EVENT_BLANK,
 				&oplus_notifier_data);
 		break;
-
 	case OPLUS_DISPLAY_POWER_OFF:
 		blank = OPLUS_DISPLAY_POWER_OFF;
 		oplus_notifier_data.data = &blank;
@@ -116,13 +117,12 @@ void notifier_oplus_display_early_status(enum oplus_display_power_status
 		oplus_display_notifier_call_chain(OPLUS_DISPLAY_EARLY_EVENT_BLANK,
 				&oplus_notifier_data);
 		break;
-
 	default:
 		break;
 	}
 }
 
-void notifier_oplus_display_status(enum oplus_display_power_status power_status)
+void oplus_display_notifier_status(enum oplus_display_power_status power_status)
 {
 	int blank;
 	OPLUS_DISPLAY_NOTIFIER_EVENT oplus_notifier_data;
@@ -135,7 +135,6 @@ void notifier_oplus_display_status(enum oplus_display_power_status power_status)
 		oplus_display_notifier_call_chain(OPLUS_DISPLAY_EVENT_BLANK,
 				&oplus_notifier_data);
 		break;
-
 	case OPLUS_DISPLAY_POWER_DOZE:
 		blank = OPLUS_DISPLAY_POWER_DOZE;
 		oplus_notifier_data.data = &blank;
@@ -143,7 +142,6 @@ void notifier_oplus_display_status(enum oplus_display_power_status power_status)
 		oplus_display_notifier_call_chain(OPLUS_DISPLAY_EVENT_BLANK,
 				&oplus_notifier_data);
 		break;
-
 	case OPLUS_DISPLAY_POWER_DOZE_SUSPEND:
 		blank = OPLUS_DISPLAY_POWER_DOZE_SUSPEND;
 		oplus_notifier_data.data = &blank;
@@ -151,7 +149,6 @@ void notifier_oplus_display_status(enum oplus_display_power_status power_status)
 		oplus_display_notifier_call_chain(OPLUS_DISPLAY_EVENT_BLANK,
 				&oplus_notifier_data);
 		break;
-
 	case OPLUS_DISPLAY_POWER_OFF:
 		blank = OPLUS_DISPLAY_POWER_OFF;
 		oplus_notifier_data.data = &blank;
@@ -159,25 +156,24 @@ void notifier_oplus_display_status(enum oplus_display_power_status power_status)
 		oplus_display_notifier_call_chain(OPLUS_DISPLAY_EVENT_BLANK,
 				&oplus_notifier_data);
 		break;
-
 	default:
 		break;
 	}
 }
 
-void set_oplus_display_power_status(enum oplus_display_power_status power_status)
+void __oplus_set_power_status(enum oplus_display_power_status power_status)
 {
 	oplus_display_status = power_status;
 }
-EXPORT_SYMBOL(set_oplus_display_power_status);
+EXPORT_SYMBOL(__oplus_set_power_status);
 
-enum oplus_display_power_status get_oplus_display_power_status(void)
+enum oplus_display_power_status __oplus_get_power_status(void)
 {
 	return oplus_display_status;
 }
-EXPORT_SYMBOL(get_oplus_display_power_status);
+EXPORT_SYMBOL(__oplus_get_power_status);
 
-bool is_oplus_display_support_feature(enum oplus_display_feature feature_name)
+bool oplus_display_is_support_feature(enum oplus_display_feature feature_name)
 {
 	bool ret = false;
 
@@ -185,39 +181,30 @@ bool is_oplus_display_support_feature(enum oplus_display_feature feature_name)
 	case OPLUS_DISPLAY_HDR:
 		ret = false;
 		break;
-
 	case OPLUS_DISPLAY_SEED:
 		ret = true;
 		break;
-
 	case OPLUS_DISPLAY_HBM:
 		ret = true;
 		break;
-
 	case OPLUS_DISPLAY_LBR:
 		ret = true;
 		break;
-
 	case OPLUS_DISPLAY_AOD:
 		ret = true;
 		break;
-
 	case OPLUS_DISPLAY_ULPS:
 		ret = false;
 		break;
-
 	case OPLUS_DISPLAY_ESD_CHECK:
 		ret = true;
 		break;
-
 	case OPLUS_DISPLAY_DYNAMIC_MIPI:
 		ret = true;
 		break;
-
 	case OPLUS_DISPLAY_PARTIAL_UPDATE:
 		ret = false;
 		break;
-
 	default:
 		break;
 	}
@@ -238,7 +225,7 @@ void oplus_display_update_current_display(void)
 	struct dsi_display *primary_display = get_main_display();
 	struct dsi_display *secondary_display = get_sec_display();
 
-	pr_debug("[DEBUG][%s:%d]start\n", __func__, __LINE__);
+	LCD_DEBUG("start\n");
 
 	if ((!primary_display && !secondary_display) || (!primary_display->panel && !secondary_display->panel)) {
 		current_display = NULL;
@@ -260,7 +247,7 @@ void oplus_display_update_current_display(void)
 	}
 #endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 
-	pr_debug("[DEBUG][%s:%d]end\n", __func__, __LINE__);
+	LCD_DEBUG("end\n");
 
 	return;
 }

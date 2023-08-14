@@ -20,9 +20,123 @@
 /* A hardware display blank early change occurred */
 #define OPLUS_DISPLAY_EARLY_EVENT_BLANK		0x02
 
+/* log level config */
+extern unsigned int oplus_lcd_log_level;
 /* debug log config */
+extern unsigned int oplus_dsi_log_type;
 extern unsigned int oplus_bl_print_window;
+/* dual display id */
+extern unsigned int oplus_ofp_display_id;
 
+/* lcd debug log */
+#define LCD_ERR(fmt, arg...)	\
+	do {	\
+		if (oplus_lcd_log_level >= OPLUS_LOG_LEVEL_ERR)	\
+			pr_err("[LCD][%u][ERR][%s:%d] " pr_fmt(fmt), oplus_ofp_display_id, __func__, __LINE__, ##arg);	\
+	} while (0)
+
+#define LCD_WARN(fmt, arg...)	\
+	do {	\
+		if (oplus_lcd_log_level >= OPLUS_LOG_LEVEL_WARN)	\
+			pr_warn("[LCD][%u][WARN][%s:%d] " pr_fmt(fmt), oplus_ofp_display_id, __func__, __LINE__, ##arg);	\
+	} while (0)
+
+#define LCD_INFO(fmt, arg...)	\
+	do {	\
+		if (oplus_lcd_log_level >= OPLUS_LOG_LEVEL_INFO)	\
+			pr_info("[LCD][%u][INFO][%s:%d] " pr_fmt(fmt), oplus_ofp_display_id, __func__, __LINE__, ##arg);	\
+	} while (0)
+
+#define LCD_INFO_ONCE(fmt, arg...)	\
+	do {	\
+		pr_info_once("[LCD][%u][INFO_ONCE][%s:%d] " pr_fmt(fmt), oplus_ofp_display_id, __func__, __LINE__, ##arg);	\
+	} while (0)
+
+#define LCD_DEBUG(fmt, arg...)	\
+	do {	\
+		if ((oplus_lcd_log_level >= OPLUS_LOG_LEVEL_DEBUG) && (oplus_dsi_log_type & OPLUS_DEBUG_LOG_LCD))	\
+			pr_info("[LCD][%u][DEBUG][%s:%d] " pr_fmt(fmt), oplus_ofp_display_id, __func__, __LINE__, ##arg);	\
+		else	\
+			pr_debug("[LCD][%u][DEBUG][%s:%d] " pr_fmt(fmt), oplus_ofp_display_id, __func__, __LINE__, ##arg);	\
+	} while (0)
+
+#define LCD_DEBUG_CMD(fmt, arg...)	\
+	do {	\
+		if ((oplus_lcd_log_level >= OPLUS_LOG_LEVEL_DEBUG) && (oplus_dsi_log_type & OPLUS_DEBUG_LOG_CMD))	\
+			pr_info("[LCD][%u][CMD][%s:%d] " pr_fmt(fmt), oplus_ofp_display_id, __func__, __LINE__, ##arg);	\
+		else	\
+			pr_debug("[LCD][%u][CMD][%s:%d] " pr_fmt(fmt), oplus_ofp_display_id, __func__, __LINE__, ##arg);	\
+	} while (0)
+
+#define LCD_DEBUG_BACKLIGHT(fmt, arg...)	\
+	do {	\
+		if ((oplus_lcd_log_level >= OPLUS_LOG_LEVEL_DEBUG) && ((oplus_dsi_log_type & OPLUS_DEBUG_LOG_BACKLIGHT) || (oplus_bl_print_window > 0)))	\
+			pr_info("[LCD][%u][BACKLIGHT][%s:%d] " pr_fmt(fmt), oplus_ofp_display_id, __func__, __LINE__, ##arg);	\
+		else	\
+			pr_debug("[LCD][%u][BACKLIGHT][%s:%d] " pr_fmt(fmt), oplus_ofp_display_id, __func__, __LINE__, ##arg);	\
+	} while (0)
+
+#define LCD_DEBUG_COMMON(fmt, arg...)	\
+	do {	\
+		if ((oplus_lcd_log_level >= OPLUS_LOG_LEVEL_DEBUG) && (oplus_dsi_log_type & OPLUS_DEBUG_LOG_COMMON))	\
+			pr_info("[LCD][%u][COMMON][%s:%d] " pr_fmt(fmt), oplus_ofp_display_id, __func__, __LINE__, ##arg);	\
+		else	\
+			pr_debug("[LCD][%u][COMMON][%s:%d] " pr_fmt(fmt), oplus_ofp_display_id, __func__, __LINE__, ##arg);	\
+	} while (0)
+
+/* lcd debug trace */
+#define OPLUS_LCD_TRACE_BEGIN(name)	\
+	do {	\
+		if (oplus_display_trace_enable & OPLUS_DISPLAY_LCD_TRACE_ENABLE)	\
+			SDE_ATRACE_BEGIN(name);	\
+	} while (0)
+
+#define OPLUS_LCD_TRACE_END(name)	\
+	do {	\
+		if (oplus_display_trace_enable & OPLUS_DISPLAY_LCD_TRACE_ENABLE)	\
+			SDE_ATRACE_END(name);	\
+	} while (0)
+
+#define OPLUS_LCD_TRACE_INT(name, value)	\
+	do {	\
+		if (oplus_display_trace_enable & OPLUS_DISPLAY_LCD_TRACE_ENABLE)	\
+			SDE_ATRACE_INT(name, value);	\
+	} while (0)
+
+/**
+ * enum oplus_debug_log --       flags to control debug log; 1->enbale  0->disable
+ * @OPLUS_DEBUG_LOG_DISABLED:    disable all debug log
+ * @OPLUS_DEBUG_LOG_CMD:         dump register log
+ * @OPLUS_DEBUG_LOG_BACKLIGHT:   backlight log
+ * @OPLUS_DEBUG_LOG_OFP:         ofp log
+ * @OPLUS_DEBUG_LOG_VRR:         vrr log
+ * @OPLUS_DEBUG_LOG_LCD:         lcd log
+ * @OPLUS_DEBUG_LOG_ALL:         enable all debug log
+ */
+enum oplus_debug_log {
+	OPLUS_DEBUG_LOG_DISABLED     = 0,
+	OPLUS_DEBUG_LOG_CMD          = BIT(0),
+	OPLUS_DEBUG_LOG_BACKLIGHT    = BIT(1),
+	OPLUS_DEBUG_LOG_COMMON       = BIT(2),
+	OPLUS_DEBUG_LOG_OFP          = BIT(3),
+	OPLUS_DEBUG_LOG_VRR          = BIT(4),
+	OPLUS_DEBUG_LOG_LCD          = BIT(5),
+	OPLUS_DEBUG_LOG_ALL          = 0xFFFF,
+};
+
+enum oplus_log_level {
+	OPLUS_LOG_LEVEL_ERR = 0,
+	OPLUS_LOG_LEVEL_WARN = 1,
+	OPLUS_LOG_LEVEL_INFO = 2,
+	OPLUS_LOG_LEVEL_DEBUG = 3,
+};
+
+enum oplus_display_trace_enable {
+	OPLUS_DISPLAY_DISABLE_TRACE = 0,
+	OPLUS_DISPLAY_OFP_TRACE_ENABLE = BIT(0),
+	OPLUS_DISPLAY_VRR_TRACE_ENABLE = BIT(1),
+	OPLUS_DISPLAY_LCD_TRACE_ENABLE = BIT(2),
+};
 
 enum oplus_display_support_list {
 	OPLUS_SAMSUNG_ANA6706_DISPLAY_FHD_DSC_CMD_PANEL = 0,
@@ -84,15 +198,15 @@ typedef struct oplus_display_notifier_event {
 
 int oplus_display_register_client(struct notifier_block *nb);
 int oplus_display_unregister_client(struct notifier_block *nb);
-void notifier_oplus_display_early_status(enum oplus_display_power_status
+void oplus_display_notifier_early_status(enum oplus_display_power_status
 		power_status);
-void notifier_oplus_display_status(enum oplus_display_power_status power_status);
-bool is_oplus_correct_display(enum oplus_display_support_list lcd_name);
-bool is_silence_reboot(void);
-bool is_factory_boot(void);
-void set_oplus_display_power_status(enum oplus_display_power_status power_status);
-enum oplus_display_power_status get_oplus_display_power_status(void);
-bool is_oplus_display_support_feature(enum oplus_display_feature feature_name);
+void oplus_display_notifier_status(enum oplus_display_power_status power_status);
+bool oplus_is_correct_display(enum oplus_display_support_list lcd_name);
+bool oplus_is_silence_reboot(void);
+bool oplus_is_factory_boot(void);
+enum oplus_display_power_status __oplus_get_power_status(void);
+void __oplus_set_power_status(enum oplus_display_power_status power_status);
+bool oplus_display_is_support_feature(enum oplus_display_feature feature_name);
 int oplus_display_get_resolution(unsigned int *xres, unsigned int *yres);
 
 /* add for dual panel */

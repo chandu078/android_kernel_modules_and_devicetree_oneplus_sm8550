@@ -1731,6 +1731,8 @@ void iris_mcu_state_set(u32 mode)
 		else
 			IRIS_LOGI("iris mcu not in stop, can't reset mcu");
 	}
+
+	iris_mcu_mode = mode;
 }
 
 void iris_mcu_mode_reset(void)

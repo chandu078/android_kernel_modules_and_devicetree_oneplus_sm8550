@@ -25,10 +25,10 @@
 #define PANEL_LOADING_EFFECT_MODE2 102
 #define PANEL_LOADING_EFFECT_OFF 100
 
-int oplus_display_get_seed_mode(void);
+int __oplus_get_seed_mode(void);
+int __oplus_set_seed_mode(int mode);
 int oplus_display_panel_get_seed(void *data);
 int oplus_display_panel_set_seed(void *data);
-int __oplus_display_set_seed(int mode);
 int dsi_panel_seed_mode(struct dsi_panel *panel, int mode);
 int dsi_panel_seed_mode_unlock(struct dsi_panel *panel, int mode);
 int dsi_display_seed_mode_lock(struct dsi_display *display, int mode);

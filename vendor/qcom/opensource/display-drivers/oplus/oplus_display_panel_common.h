@@ -70,11 +70,13 @@ struct panel_reg_rw {
 int oplus_display_panel_get_id(void *buf);
 int oplus_display_panel_get_max_brightness(void *buf);
 int oplus_display_panel_set_max_brightness(void *buf);
+int oplus_display_panel_get_lcd_max_brightness(void *buf);
+int oplus_display_panel_set_brightness(void *buf);
 int oplus_display_panel_get_brightness(void *buf);
 int oplus_display_panel_get_vendor(void *buf);
 int oplus_display_panel_get_ccd_check(void *buf);
 int oplus_display_panel_get_serial_number(void *buf);
-int oplus_display_set_qcom_loglevel(void *data);
+int oplus_display_panel_set_qcom_loglevel(void *data);
 int oplus_display_panel_set_audio_ready(void *data);
 int oplus_display_panel_dump_info(void *data);
 int oplus_display_panel_get_dsc(void *data);
@@ -88,21 +90,23 @@ int oplus_display_panel_get_spr(void *data);
 int oplus_display_panel_get_roundcorner(void *data);
 int oplus_display_panel_set_dynamic_osc_clock(void *data);
 int oplus_display_panel_get_dynamic_osc_clock(void *data);
-int oplus_display_get_softiris_color_status(void *data);
+int oplus_display_panel_get_softiris_color_status(void *data);
 int oplus_display_panel_hbm_lightspot_check(void);
-int oplus_display_set_dither_status(void *buf);
-int oplus_display_get_dither_status(void *buf);
+int oplus_display_panel_set_dither_status(void *buf);
+int oplus_display_panel_get_dither_status(void *buf);
 int oplus_display_panel_get_oplus_max_brightness(void *buf);
-void oplus_display_panel_enable(void);
-int oplus_display_get_dp_support(void *buf);
-int oplus_display_set_cabc_status(void *buf);
-int oplus_display_get_cabc_status(void *buf);
-int oplus_display_set_dre_status(void *buf);
-int oplus_display_get_dre_status(void *buf);
-/* Add for dtsi parse*/
-int dsi_panel_parse_oplus_config(struct dsi_panel *panel);
+int oplus_display_panel_get_dp_support(void *buf);
+int oplus_display_panel_set_cabc_status(void *buf);
+int oplus_display_panel_get_cabc_status(void *buf);
+int oplus_display_panel_set_dre_status(void *buf);
+int oplus_display_panel_get_dre_status(void *buf);
 int oplus_display_panel_set_dither(void *data);
 int oplus_display_panel_get_dither(void *data);
+inline bool oplus_panel_pwm_turbo_is_enabled(struct dsi_panel *panel);
+int oplus_panel_send_pwm_turbo_dcs_unlock(struct dsi_panel *panel, bool enabled);
+int oplus_panel_update_pwm_turbo_lock(struct dsi_panel *panel, bool enabled);
+int oplus_display_panel_set_pwm_turbo(void *data);
+int oplus_display_panel_get_pwm_turbo(void *data);
 int oplus_panel_set_ffc_mode_unlock(struct dsi_panel *panel);
 int oplus_panel_set_ffc_kickoff_lock(struct dsi_panel *panel);
 int oplus_panel_check_ffc_config(struct dsi_panel *panel,
@@ -111,7 +115,9 @@ int oplus_display_update_clk_ffc(struct dsi_display *display,
 		struct dsi_display_mode *cur_mode, struct dsi_display_mode *adj_mode);
 int oplus_display_update_osc_ffc(struct dsi_display *display,
 		u32 osc_rate);
-int oplus_display_get_iris_loopback_status(void *buf);
+/* Add for dtsi parse*/
+int oplus_panel_parse_config(struct dsi_panel *panel);
+int oplus_display_panel_get_iris_loopback_status(void *buf);
 
 #endif /* _OPLUS_DISPLAY_PANEL_COMMON_H_ */
 

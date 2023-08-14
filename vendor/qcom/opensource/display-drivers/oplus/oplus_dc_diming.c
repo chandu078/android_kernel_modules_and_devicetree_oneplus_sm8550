@@ -102,8 +102,8 @@ static struct oplus_brightness_alpha brightness_alpha_lut_dc[] = {
 	{200, 0x8},
 	{223, 0x0},
 };
-/*Jiasong.ZhongPSW.MM.Display.LCD.Stable,2020-09-17 add for DC backlight */
-int dsi_panel_parse_oplus_dc_config(struct dsi_panel *panel)
+
+int oplus_panel_parse_dc_config(struct dsi_panel *panel)
 {
 	int rc = 0;
 	int i;
@@ -117,16 +117,16 @@ int dsi_panel_parse_oplus_dc_config(struct dsi_panel *panel)
 
 	arr = utils->get_property(utils->data, "oplus,dsi-dc-brightness", &length);
 	if (!arr) {
-		DSI_ERR("[%s] oplus,dsi-dc-brightness  not found\n", panel->name);
+		LCD_ERR("[%s] oplus,dsi-dc-brightness  not found\n", panel->name);
 		return -EINVAL;
 	}
 
 	if (length & 0x1) {
-		DSI_ERR("[%s] oplus,dsi-dc-brightness length error\n", panel->name);
+		LCD_ERR("[%s] oplus,dsi-dc-brightness length error\n", panel->name);
 		return -EINVAL;
 	}
 
-	DSI_DEBUG("RESET SEQ LENGTH = %d\n", length);
+	LCD_DEBUG("RESET SEQ LENGTH = %d\n", length);
 	length = length / sizeof(u32);
 	size = length * sizeof(u32);
 
@@ -139,7 +139,7 @@ int dsi_panel_parse_oplus_dc_config(struct dsi_panel *panel)
 	rc = utils->read_u32_array(utils->data, "oplus,dsi-dc-brightness",
 					arr_32, length);
 	if (rc) {
-		DSI_ERR("[%s] cannot read dsi-dc-brightness\n", panel->name);
+		LCD_ERR("[%s] cannot read dsi-dc-brightness\n", panel->name);
 		goto error_free_arr_32;
 	}
 
@@ -178,7 +178,7 @@ int sde_connector_update_backlight(struct drm_connector *connector, bool post)
 	dsi_display = c_conn->display;
 
 	if (!dsi_display || !dsi_display->panel || !dsi_display->panel->cur_mode) {
-		SDE_ERROR("Invalid params(s) dsi_display %pK, panel %pK\n",
+		LCD_ERR("Invalid params(s) dsi_display %pK, panel %pK\n",
 			  dsi_display,
 			  ((dsi_display) ? dsi_display->panel : NULL));
 		return -EINVAL;
@@ -391,16 +391,16 @@ int oplus_seed_bright_to_alpha(int brightness)
 	else if (i == count)
 		alpha = lut[count - 1].alpha;
 	else
-		alpha = interpolate(brightness, lut[i-1].brightness,
-				    lut[i].brightness, lut[i-1].alpha,
-				    lut[i].alpha);
+		alpha = oplus_interpolate(brightness, lut[i-1].brightness,
+				lut[i].brightness, lut[i-1].alpha,
+				lut[i].alpha);
 
 	return alpha;
 }
 
 struct dsi_panel_cmd_set *
-oplus_dsi_update_seed_backlight(struct dsi_panel *panel, int brightness,
-			       enum dsi_cmd_set_type type)
+oplus_panel_update_seed_backlight(struct dsi_panel *panel, int brightness,
+		enum dsi_cmd_set_type type)
 {
 	enum dsi_cmd_set_state state;
 	struct dsi_cmd_desc *cmds;
@@ -495,13 +495,13 @@ error:
 
 	return ERR_PTR(rc);
 }
-EXPORT_SYMBOL(oplus_dsi_update_seed_backlight);
+EXPORT_SYMBOL(oplus_panel_update_seed_backlight);
 
 int oplus_display_panel_get_dim_alpha(void *buf)
 {
 	unsigned int *temp_alpha = buf;
 
-	if (get_oplus_display_power_status() != OPLUS_DISPLAY_POWER_ON) {
+	if (__oplus_get_power_status() != OPLUS_DISPLAY_POWER_ON) {
 		(*temp_alpha) = 0;
 		return 0;
 	}
@@ -524,7 +524,7 @@ int oplus_display_panel_get_dim_dc_alpha(void *buf)
 	int ret = 0;
 	unsigned int *temp_dim_alpha = buf;
 
-	if (get_oplus_display_power_status() != OPLUS_DISPLAY_POWER_ON) {
+	if (__oplus_get_power_status() != OPLUS_DISPLAY_POWER_ON) {
 		ret = 0;
 	}
 
@@ -556,7 +556,7 @@ int oplus_display_panel_set_dimlayer_enable(void *data)
 
 	if (!strcmp(display->panel->name, "samsung S6E3HC3 dsc cmd mode panel 21631")) {
 		dc_apollo_enable = *dimlayer_enable;
-		pr_info("DC BKL %s\n", *dimlayer_enable?"ON":"OFF");
+		LCD_INFO("DC BKL %s\n", *dimlayer_enable?"ON":"OFF");
 		return 0;
 	}
 
@@ -567,11 +567,11 @@ int oplus_display_panel_set_dimlayer_enable(void *data)
 
 		mutex_lock(&display->display_lock);
 		if (!dsi_connector || !dsi_connector->state || !dsi_connector->state->crtc) {
-			pr_err("[%s]: display not ready\n", __func__);
+			LCD_ERR("display not ready\n");
 		} else {
 			err = drm_crtc_vblank_get(dsi_connector->state->crtc);
 			if (err) {
-				pr_err("failed to get crtc vblank, error=%d\n", err);
+				LCD_ERR("failed to get crtc vblank, error=%d\n", err);
 			} else {
 				/* do vblank put after 7 frames */
 				oplus_datadimming_vblank_count = 7;
@@ -603,7 +603,7 @@ int oplus_display_panel_get_dimlayer_enable(void *data)
 	return 0;
 }
 
-int bl_to_alpha_dc(int brightness)
+int oplus_bl_to_alpha_dc(int brightness)
 {
 	int level = ARRAY_SIZE(brightness_alpha_lut_dc);
 	int i = 0;
@@ -620,7 +620,7 @@ int bl_to_alpha_dc(int brightness)
 	} else if (i == level) {
 		alpha = brightness_alpha_lut_dc[level - 1].alpha;
 	} else
-		alpha = interpolate(brightness,
+		alpha = oplus_interpolate(brightness,
 				    brightness_alpha_lut_dc[i - 1].brightness,
 				    brightness_alpha_lut_dc[i].brightness,
 				    brightness_alpha_lut_dc[i - 1].alpha,

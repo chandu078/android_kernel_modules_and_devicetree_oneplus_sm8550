@@ -21,12 +21,20 @@ extern int oplus_seed_backlight;
 
 DEFINE_MUTEX(oplus_seed_lock);
 
-int oplus_display_get_seed_mode(void)
+int __oplus_get_seed_mode(void)
 {
-	return seed_mode;
+	int mode = 0;
+
+	mutex_lock(&oplus_seed_lock);
+
+	mode = seed_mode;
+
+	mutex_unlock(&oplus_seed_lock);
+
+	return mode;
 }
 
-int __oplus_display_set_seed(int mode)
+int __oplus_set_seed_mode(int mode)
 {
 	mutex_lock(&oplus_seed_lock);
 
@@ -35,6 +43,7 @@ int __oplus_display_set_seed(int mode)
 	}
 
 	mutex_unlock(&oplus_seed_lock);
+
 	return 0;
 }
 
@@ -49,64 +58,24 @@ int dsi_panel_seed_mode_unlock(struct dsi_panel *panel, int mode)
 	switch (mode) {
 	case 0:
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE0);
-
-		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SEED_MODE0 cmds, rc=%d\n",
-					panel->name, rc);
-		}
-
 		break;
-
 	case 1:
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE1);
-
-		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SEED_MODE1 cmds, rc=%d\n",
-					panel->name, rc);
-		}
-
 		break;
-
 	case 2:
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE2);
-
-		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SEED_MODE2 cmds, rc=%d\n",
-					panel->name, rc);
-		}
-
 		break;
-
 	case 3:
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE3);
-
-		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SEED_MODE3 cmds, rc=%d\n",
-					panel->name, rc);
-		}
-
 		break;
-
 	case 4:
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE4);
-
-		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SEED_MODE4 cmds, rc=%d\n",
-					panel->name, rc);
-		}
-
 		break;
-
 	default:
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_OFF);
-
-		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SEED_OFF cmds, rc=%d\n",
-					panel->name, rc);
-		}
-
-		pr_err("[%s] seed mode Invalid %d\n",
-				panel->name, mode);
+		LCD_ERR("[%s] Invalid seed mode %d\n",
+				panel->oplus_priv.vendor_name, mode);
+		break;
 	}
 
 	return rc;
@@ -123,44 +92,18 @@ int dsi_panel_loading_effect_mode_unlock(struct dsi_panel *panel, int mode)
 	switch (mode) {
 	case PANEL_LOADING_EFFECT_MODE1:
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_MODE1);
-
-		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SEED_MODE0 cmds, rc=%d\n",
-					panel->name, rc);
-		}
-
 		break;
-
 	case PANEL_LOADING_EFFECT_MODE2:
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_MODE2);
-
-		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SEED_MODE1 cmds, rc=%d\n",
-					panel->name, rc);
-		}
-
 		break;
-
 	case PANEL_LOADING_EFFECT_OFF:
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF);
-
-		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SEED_MODE2 cmds, rc=%d\n",
-					panel->name, rc);
-		}
-
 		break;
-
 	default:
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF);
-
-		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_LOADING_EFFECT_OFF cmds, rc=%d\n",
-					panel->name, rc);
-		}
-
-		pr_err("[%s] loading effect mode Invalid %d\n",
-				panel->name, mode);
+		LCD_ERR("[%s] Invalid loading effect mode %d\n",
+				panel->oplus_priv.vendor_name, mode);
+		break;
 	}
 
 	return rc;
@@ -171,7 +114,7 @@ int dsi_panel_seed_mode(struct dsi_panel *panel, int mode)
 	int rc = 0;
 
 	if (!panel) {
-		pr_err("Invalid params\n");
+		LCD_ERR("Invalid params\n");
 		return -EINVAL;
 	}
 
@@ -189,7 +132,7 @@ int dsi_display_seed_mode_lock(struct dsi_display *display, int mode)
 	int rc = 0;
 
 	if (!display || !display->panel) {
-		pr_err("Invalid params\n");
+		LCD_ERR("Invalid params\n");
 		return -EINVAL;
 	}
 
@@ -205,8 +148,8 @@ int dsi_display_seed_mode_lock(struct dsi_display *display, int mode)
 	rc = dsi_panel_seed_mode(display->panel, mode);
 
 	if (rc) {
-		pr_err("[%s] failed to dsi_panel_seed_or_loading_effect_on, rc=%d\n",
-				display->name, rc);
+		LCD_ERR("[%s] failed to seed or loading_effect on, rc=%d\n",
+				display->panel->oplus_priv.vendor_name, rc);
 	}
 
 	if (display->config.panel_mode == DSI_OP_CMD_MODE) {
@@ -216,15 +159,21 @@ int dsi_display_seed_mode_lock(struct dsi_display *display, int mode)
 
 	mutex_unlock(&display->panel->panel_lock);
 	mutex_unlock(&display->display_lock);
+
 	return rc;
 }
 
 int oplus_display_panel_get_seed(void *data)
 {
 	uint32_t *temp = data;
-	printk(KERN_INFO "oplus_display_get_seed = %d\n", seed_mode);
 
+	mutex_lock(&oplus_seed_lock);
+
+	LCD_INFO("get seed mode = %d\n", seed_mode);
 	(*temp) = seed_mode;
+
+	mutex_unlock(&oplus_seed_lock);
+
 	return 0;
 }
 
@@ -233,10 +182,21 @@ int oplus_display_panel_set_seed(void *data)
 	uint32_t *temp_save = data;
 	uint32_t panel_id = (*temp_save >> 12);
 	struct dsi_display *display = oplus_display_get_current_display();
-	seed_mode = (*temp_save & 0x0fff);
-	printk(KERN_INFO "%s oplus_display_set_seed = %d, panel_id = %d\n", __func__, seed_mode, panel_id);
+	int mode = (*temp_save & 0x0fff);
 
-	__oplus_display_set_seed(seed_mode);
+	LCD_INFO("set seed mode = %d, panel_id = %d\n",
+			mode, panel_id);
+
+	if (1 == panel_id) {
+		display = get_sec_display();
+	}
+
+	if (!display || !display->panel) {
+		LCD_ERR("Invalid params\n");
+		return -EINVAL;
+	}
+
+	__oplus_set_seed_mode(mode);
 
 #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
 	if (oplus_ofp_is_supported() && !oplus_ofp_oled_capacitive_is_enabled()
@@ -248,22 +208,13 @@ int oplus_display_panel_set_seed(void *data)
 	}
 #endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 
-	if (1 == panel_id) {
-		display = get_sec_display();
-	}
-
-	if (display == NULL) {
-		printk(KERN_INFO "oplus_display_set_seed and main display is null");
-		return -EINVAL;
-	}
 	if (display->panel->power_mode != SDE_MODE_DPMS_ON) {
-		printk(KERN_ERR
-				"<%s> %s oplus_display_set_seed = %d, but now display panel power_mode is not on\n",
-				display->panel->oplus_priv.vendor_name, __func__, seed_mode);
+		LCD_ERR("[%s] failed to set seed mode:%d, because display is not on\n",
+				display->panel->oplus_priv.vendor_name, mode);
 		return -EINVAL;
 	}
 
-	dsi_display_seed_mode_lock(display, seed_mode);
+	dsi_display_seed_mode_lock(display, mode);
 
 	return 0;
 }

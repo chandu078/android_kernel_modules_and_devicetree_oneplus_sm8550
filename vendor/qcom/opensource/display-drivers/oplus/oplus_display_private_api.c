@@ -45,7 +45,6 @@ int iris_recovery_check_state = -1;
 int backlight_smooth_enable = 1;
 
 extern int oplus_underbrightness_alpha;
-extern int msm_drm_notifier_call_chain(unsigned long val, void *v);
 int oplus_dc2_alpha;
 int oplus_dimlayer_bl_enable_v3 = 0;
 int oplus_dimlayer_bl_enable_v2 = 0;
@@ -75,6 +74,8 @@ u32 oplus_backlight_delta = 0;
 unsigned int oplus_dsi_log_type = OPLUS_DEBUG_LOG_DISABLED;
 unsigned int oplus_display_trace_enable = OPLUS_DISPLAY_DISABLE_TRACE;
 int dsi_cmd_panel_debug = 0;
+uint64_t serial_number_fir = 0x0;
+uint64_t serial_number_sec = 0x0;
 
 EXPORT_SYMBOL(oplus_dimlayer_bl_alpha);
 EXPORT_SYMBOL(oplus_dimlayer_bl_enable_real);
@@ -103,18 +104,18 @@ struct kobj_attribute oplus_attr_##_name = __ATTR(_name, _mode, _show, _store)
 DEFINE_MUTEX(oplus_spr_lock);
 DEFINE_MUTEX(oplus_dither_lock);
 
-int oplus_set_display_vendor(struct dsi_display *display)
+int oplus_display_set_vendor(struct dsi_display *display)
 {
 	if (!display || !display->panel ||
 			!display->panel->oplus_priv.vendor_name ||
 			!display->panel->oplus_priv.manufacture_name) {
-		pr_err("failed to config lcd proc device");
+		LCD_ERR("failed to config lcd proc device\n");
 		return -EINVAL;
 	}
 
 #if defined(CONFIG_PXLW_IRIS)
 	if (iris_is_chip_supported() && (!strcmp(display->display_type, "secondary"))) {
-		pr_err("iris secondary disable config lcd_s proc device");
+		LCD_ERR("iris secondary disable config lcd_s proc device\n");
 		return -EINVAL;
 	}
 #endif
@@ -128,14 +129,14 @@ int oplus_set_display_vendor(struct dsi_display *display)
 
 	return 0;
 }
-EXPORT_SYMBOL(oplus_set_display_vendor);
+EXPORT_SYMBOL(oplus_display_set_vendor);
 
 int dsi_panel_spr_mode(struct dsi_panel *panel, int mode)
 {
 	int rc = 0;
 
 	if (!panel) {
-		pr_err("Invalid params\n");
+		LCD_ERR("Invalid params\n");
 		return -EINVAL;
 	}
 
@@ -149,45 +150,19 @@ int dsi_panel_spr_mode(struct dsi_panel *panel, int mode)
 	switch (mode) {
 	case 0:
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SPR_MODE0);
-
-		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SPR_MODE0 cmds, rc=%d\n",
-					panel->name, rc);
-		}
-
 		break;
-
 	case 1:
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SPR_MODE1);
-
-		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SPR_MODE1 cmds, rc=%d\n",
-					panel->name, rc);
-		}
-
 		break;
-
 	case 2:
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SPR_MODE2);
-
-		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SEED_MODE2 cmds, rc=%d\n",
-					panel->name, rc);
-		}
-
 		break;
-
 	default:
 		rc = dsi_panel_tx_cmd_set(panel,
 				DSI_CMD_SPR_MODE0);
-
-		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SPR_MODE0 cmds, rc=%d\n",
-					panel->name, rc);
-		}
-
-		pr_err("[%s] seed mode Invalid %d\n",
-				panel->name, mode);
+		LCD_ERR("[%s] Invalid spr mode %d\n",
+				panel->oplus_priv.vendor_name, mode);
+		break;
 	}
 
 error:
@@ -231,16 +206,14 @@ int dsi_panel_read_panel_reg(struct dsi_display_ctrl *ctrl,
 	dsi_display_set_cmd_tx_ctrl_flags(display, &cmdsreq);
 	rc = dsi_ctrl_transfer_prepare(ctrl->ctrl, cmdsreq.ctrl_flags);
 	if (rc) {
-		DSI_ERR("prepare for rx cmd transfer failed rc=%d\n", rc);
+		LCD_ERR("prepare for rx cmd transfer failed rc=%d\n", rc);
 		goto error;
 	}
 
 	rc = dsi_ctrl_cmd_transfer(ctrl->ctrl, &cmdsreq);
 
 	if (rc < 0) {
-		pr_err("%s, dsi_display_read_panel_reg rx cmd transfer failed rc=%d\n",
-				__func__,
-				rc);
+		LCD_ERR("rx cmd transfer failed, rc=%d\n", rc);
 	}
 
 	dsi_ctrl_transfer_unprepare(ctrl->ctrl, cmdsreq.ctrl_flags);
@@ -256,7 +229,7 @@ int dsi_display_spr_mode(struct dsi_display *display, int mode)
 	int rc = 0;
 
 	if (!display || !display->panel) {
-		pr_err("Invalid params\n");
+		LCD_ERR("Invalid params\n");
 		return -EINVAL;
 	}
 
@@ -271,7 +244,7 @@ int dsi_display_spr_mode(struct dsi_display *display, int mode)
 	rc = dsi_panel_spr_mode(display->panel, mode);
 
 	if (rc) {
-		pr_err("[%s] failed to dsi_panel_spr_on, rc=%d\n",
+		LCD_ERR("[%s] failed to dsi_panel_spr_on, rc=%d\n",
 				display->name, rc);
 	}
 
@@ -291,7 +264,7 @@ int dsi_display_read_panel_reg(struct dsi_display *display, u8 cmd, void *data,
 	struct dsi_display_ctrl *m_ctrl;
 
 	if (!display || !display->panel || data == NULL) {
-		pr_err("%s, Invalid params\n", __func__);
+		LCD_ERR("Invalid params\n");
 		return -EINVAL;
 	}
 
@@ -303,7 +276,7 @@ int dsi_display_read_panel_reg(struct dsi_display *display, u8 cmd, void *data,
 		rc = dsi_host_alloc_cmd_tx_buffer(display);
 
 		if (rc) {
-			pr_err("%s, failed to allocate cmd tx buffer memory\n", __func__);
+			LCD_ERR("failed to allocate cmd tx buffer memory\n");
 			goto done;
 		}
 	}
@@ -311,7 +284,7 @@ int dsi_display_read_panel_reg(struct dsi_display *display, u8 cmd, void *data,
 	rc = dsi_display_cmd_engine_enable(display);
 
 	if (rc) {
-		pr_err("%s, cmd engine enable failed\n", __func__);
+		LCD_ERR("cmd engine enable failed\n");
 		goto done;
 	}
 
@@ -324,8 +297,7 @@ int dsi_display_read_panel_reg(struct dsi_display *display, u8 cmd, void *data,
 	rc = dsi_panel_read_panel_reg(m_ctrl, display->panel, cmd, data, len);
 
 	if (rc < 0) {
-		pr_err("%s, [%s] failed to read panel register, rc=%d,cmd=%d\n",
-				__func__,
+		LCD_ERR("[%s] failed to read panel register, rc=%d,cmd=%d\n",
 				display->name,
 				rc,
 				cmd);
@@ -340,7 +312,7 @@ int dsi_display_read_panel_reg(struct dsi_display *display, u8 cmd, void *data,
 
 done:
 	mutex_unlock(&display->display_lock);
-	pr_err("%s, return: %d\n", __func__, rc);
+	LCD_INFO("return: %d\n", rc);
 	return rc;
 }
 
@@ -352,14 +324,14 @@ static ssize_t oplus_display_set_seed(struct kobject *obj,
 	struct dsi_display *display = get_main_display();
 
 	if (!display || !display->panel) {
-		printk(KERN_INFO "oplus_display_set_seed and main display is null");
+		LCD_ERR("display is null\n");
 		return -EINVAL;
 	}
 
 	sscanf(buf, "%du", &temp_save);
-	printk(KERN_INFO "%s oplus_display_set_seed = %d\n", __func__, temp_save);
+	LCD_INFO("oplus_display_set_seed = %d\n", temp_save);
 
-	__oplus_display_set_seed(temp_save);
+	__oplus_set_seed_mode(temp_save);
 
 #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
 	if (oplus_ofp_is_supported() && !oplus_ofp_oled_capacitive_is_enabled()
@@ -371,19 +343,18 @@ static ssize_t oplus_display_set_seed(struct kobject *obj,
 	}
 #endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 
-	/* if (get_oplus_display_power_status() == OPLUS_DISPLAY_POWER_ON) { */
+	/* if (__oplus_get_power_status() == OPLUS_DISPLAY_POWER_ON) { */
 	if (display->panel->power_mode == SDE_MODE_DPMS_ON) {
 		if (get_main_display() == NULL) {
-			printk(KERN_INFO "oplus_display_set_seed and main display is null");
+			LCD_ERR("display is null\n");
 			return count;
 		}
 
 		dsi_display_seed_mode_lock(get_main_display(), seed_mode);
 
 	} else {
-		printk(KERN_ERR
-				"%s oplus_display_set_seed = %d, but now display panel status is not on\n",
-				__func__, temp_save);
+		LCD_ERR("oplus_display_set_seed = %d, but now display panel status is not on\n",
+				temp_save);
 	}
 
 	return count;
@@ -413,13 +384,13 @@ int __oplus_display_set_dither(int mode)
 	return 0;
 }
 
-int oplus_dsi_update_spr_mode(void)
+int oplus_display_panel_update_spr_mode(void)
 {
 	struct dsi_display *display = get_main_display();
 	int ret = 0;
 
 	if (!display) {
-		pr_err("failed for: %s %d\n", __func__, __LINE__);
+		LCD_ERR("display is null\n");
 		return -EINVAL;
 	}
 
@@ -436,28 +407,27 @@ static ssize_t oplus_display_set_spr(struct kobject *obj,
 	struct dsi_display *display = get_main_display();
 
 	if (!display || !display->panel) {
-		printk(KERN_INFO "oplus_display_set_spr and main display is null");
+		LCD_ERR("display is null\n");
 		return -EINVAL;
 	}
 
 	sscanf(buf, "%du", &temp_save);
-	printk(KERN_INFO "%s oplus_display_set_spr = %d\n", __func__, temp_save);
+	LCD_INFO("oplus_display_set_spr = %d\n", temp_save);
 
 	__oplus_display_set_spr(temp_save);
 
-	/* if (get_oplus_display_power_status() == OPLUS_DISPLAY_POWER_ON) { */
+	/* if (__oplus_get_power_status() == OPLUS_DISPLAY_POWER_ON) { */
 	if (display->panel->power_mode == SDE_MODE_DPMS_ON) {
 		if (get_main_display() == NULL) {
-			printk(KERN_INFO "oplus_display_set_spr and main display is null");
+			LCD_ERR("display is null\n");
 			return count;
 		}
 
 		dsi_display_spr_mode(get_main_display(), spr_mode);
 
 	} else {
-		printk(KERN_ERR
-				"%s oplus_display_set_spr = %d, but now display panel status is not on\n",
-				__func__, temp_save);
+		LCD_ERR("oplus_display_set_spr = %d, but now display panel status is not on\n",
+				temp_save);
 	}
 
 	return count;
@@ -470,12 +440,12 @@ static ssize_t oplus_display_set_dither(struct kobject *obj,
 	int temp_save = 0;
 
 	sscanf(buf, "%du", &temp_save);
-	printk(KERN_INFO "%s oplus_display_set_dither = %d\n", __func__, temp_save);
+	LCD_INFO("oplus_display_set_dither = %d\n", temp_save);
 	__oplus_display_set_dither(temp_save);
 	return count;
 }
 
-bool is_support_panel_dither(const char *panel_name) {
+bool oplus_is_support_panel_dither(const char *panel_name) {
 	if (panel_name == NULL)
 		return false;
 	if ((!strcmp(panel_name, "AMS662ZS02")) && dither_enable) {
@@ -497,21 +467,21 @@ static ssize_t oplus_display_set_audio_ready(struct kobject *obj,
 static ssize_t oplus_display_get_seed(struct kobject *obj,
 		struct kobj_attribute *attr, char *buf)
 {
-	printk(KERN_INFO "oplus_display_get_seed = %d\n", seed_mode);
+	LCD_INFO("oplus_display_get_seed = %d\n", seed_mode);
 	return sprintf(buf, "%d\n", seed_mode);
 }
 
 static ssize_t oplus_display_get_spr(struct kobject *obj,
 		struct kobj_attribute *attr, char *buf)
 {
-	printk(KERN_INFO "oplus_display_get_spr = %d\n", spr_mode);
+	LCD_INFO("oplus_display_get_spr = %d\n", spr_mode);
 	return sprintf(buf, "%d\n", spr_mode);
 }
 
 static ssize_t oplus_display_get_dither(struct kobject *obj,
 		struct kobj_attribute *attr, char *buf)
 {
-	printk(KERN_ERR "oplus_display_get_dither = %d\n", dither_enable);
+	LCD_INFO("oplus_display_get_dither = %d\n", dither_enable);
 	return sprintf(buf, "%d\n", dither_enable);
 }
 static ssize_t oplus_display_get_iris_state(struct kobject *obj,
@@ -527,10 +497,9 @@ static ssize_t oplus_display_regulator_control(struct kobject *obj,
 	int temp_save = 0;
 	struct dsi_display *temp_display;
 	sscanf(buf, "%du", &temp_save);
-	printk(KERN_INFO "%s oplus_display_regulator_control = %d\n", __func__,
-			temp_save);
+	LCD_INFO("oplus_display_regulator_control = %d\n", temp_save);
 	if (get_main_display() == NULL) {
-		printk(KERN_INFO "oplus_display_regulator_control and main display is null");
+		LCD_ERR("display is null\n");
 		return count;
 	}
 	temp_display = get_main_display();
@@ -551,36 +520,57 @@ static ssize_t oplus_display_get_panel_serial_number(struct kobject *obj,
 	uint64_t serial_number;
 	struct dsi_display *display = get_main_display();
 	int i;
+	int panel_id = 0;
 
 	if (!display || !display->panel) {
-		printk(KERN_INFO
-				"oplus_display_get_panel_serial_number and main display is null");
+		LCD_ERR("display is null\n");
 		return -1;
 	}
 
 	if(display->enabled == false) {
-		pr_info("%s primary display is disable, try sec display\n", __func__);
+		LCD_INFO("primary display is disable, try sec display\n");
 		display = get_sec_display();
 		if (!display) {
-			pr_info("%s sec display is null\n", __func__);
+			LCD_INFO("second display is null\n");
 			return -1;
 		}
 		if (display->enabled == false) {
-			pr_info("%s second panel is disabled", __func__);
+			LCD_INFO("second panel is disabled\n");
 			return -1;
 		}
+		panel_id = 1;
 	}
 
-	/* if (get_oplus_display_power_status() != OPLUS_DISPLAY_POWER_ON) { */
+	/* if (__oplus_get_power_status() != OPLUS_DISPLAY_POWER_ON) { */
 	if (display->panel->power_mode != SDE_MODE_DPMS_ON) {
-		printk(KERN_ERR"%s display panel in off status\n", __func__);
+		LCD_INFO("display panel in off status\n");
 		return ret;
 	}
 
 	if (!display->panel->panel_initialized) {
-		printk(KERN_ERR"%s panel initialized = false\n", __func__);
+		LCD_ERR("panel initialized = false\n");
 		return ret;
 	}
+	/*
+	 * To fix bug id 5489022, we do not read serial number frequently.
+	 * First read, then return the saved value.
+	 */
+	if (1 == panel_id) {
+		if (serial_number_sec != 0) {
+			ret = scnprintf(buf, PAGE_SIZE, "Get panel serial number: %llx\n",
+							serial_number_sec);
+			pr_info("%s read serial_number_sec 0x%x\n", __func__, serial_number_sec);
+			return ret;
+		}
+	} else {
+		if (serial_number_fir != 0) {
+			ret = scnprintf(buf, PAGE_SIZE, "Get panel serial number: %llx\n",
+							serial_number_fir);
+			pr_info("%s read serial_number_fir 0x%x\n", __func__, serial_number_fir);
+			return ret;
+		}
+	}
+
 	/*
 	 * for some unknown reason, the panel_serial_info may read dummy,
 	 * retry when found panel_serial_info is abnormal.
@@ -589,17 +579,13 @@ static ssize_t oplus_display_get_panel_serial_number(struct kobject *obj,
 		if (!strcmp(display->panel->name, "boe rm692e5 dsc cmd mode panel")) {
 			mutex_lock(&display->display_lock);
 			mutex_lock(&display->panel->panel_lock);
-
 			ret = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_PANEL_DATE_SWITCH);
-			if (ret) {
-				printk(KERN_ERR"%s Failed to set DSI_CMD_PANEL_DATE_SWITCH !!\n", __func__);
-				mutex_unlock(&display->panel->panel_lock);
-				mutex_unlock(&display->display_lock);
-				return -1;
-			}
 			mutex_unlock(&display->panel->panel_lock);
 			mutex_unlock(&display->display_lock);
 
+			if (ret) {
+				return -1;
+			}
 		} else if (!display->panel->oplus_ser.is_reg_lock) {
 			/* unknow what this case want to do */
 		} else {
@@ -677,6 +663,12 @@ static ssize_t oplus_display_get_panel_serial_number(struct kobject *obj,
 
 		ret = scnprintf(buf, PAGE_SIZE, "Get panel serial number: %llx\n",
 				serial_number);
+		/*Save serial_number value.*/
+		if (1 == panel_id) {
+			serial_number_sec = serial_number;
+		} else {
+			serial_number_fir = serial_number;
+		}
 		break;
 	}
 
@@ -727,7 +719,7 @@ static ssize_t oplus_display_set_panel_reg(struct kobject *obj,
 		display = get_sec_display();
 
 	if (!display || !display->panel) {
-		pr_err("debug for: %s %d\n", __func__, __LINE__);
+		LCD_ERR("display is null\n");
 		return -EFAULT;
 	}
 
@@ -736,14 +728,14 @@ static ssize_t oplus_display_set_panel_reg(struct kobject *obj,
 		sscanf(bufp, "%x %d", &value, &len);
 
 		if (len > PANEL_TX_MAX_BUF) {
-			pr_err("failed\n");
+			LCD_ERR("failed\n");
 			return -EINVAL;
 		}
 
 		dsi_display_read_panel_reg(display, value, reg, len);
 
 		for (index = 0; index < len; index++) {
-			printk("%x ", reg[index]);
+			LCD_INFO("%x\n", reg[index]);
 		}
 
 		mutex_lock(&display->display_lock);
@@ -757,7 +749,7 @@ static ssize_t oplus_display_set_panel_reg(struct kobject *obj,
 		reg[len++] = value;
 
 		if (len >= PANEL_TX_MAX_BUF) {
-			pr_err("wrong input reg len\n");
+			LCD_ERR("wrong input reg len\n");
 			return -EFAULT;
 		}
 
@@ -768,7 +760,7 @@ static ssize_t oplus_display_set_panel_reg(struct kobject *obj,
 		payload[index] = reg[index + 1];
 	}
 
-	/* if (get_oplus_display_power_status() == OPLUS_DISPLAY_POWER_ON) { */
+	/* if (__oplus_get_power_status() == OPLUS_DISPLAY_POWER_ON) { */
 	if (display->panel->power_mode != SDE_MODE_DPMS_OFF) {
 		/* enable the clk vote for CMD mode panels */
 		mutex_lock(&display->display_lock);
@@ -811,15 +803,15 @@ static ssize_t oplus_display_get_panel_id(struct kobject *obj,
 	char dc = 0;
 
 	if (!display || !display->panel) {
-		printk(KERN_INFO "oplus_display_get_panel_id and main display is null");
+		LCD_ERR("display is null\n");
 		ret = -1;
 		return ret;
 	}
 
-	/* if (get_oplus_display_power_status() == OPLUS_DISPLAY_POWER_ON) { */
+	/* if (__oplus_get_power_status() == OPLUS_DISPLAY_POWER_ON) { */
 	if (display->panel->power_mode == SDE_MODE_DPMS_ON) {
 		if (display == NULL) {
-			printk(KERN_INFO "oplus_display_get_panel_id and main display is null");
+			LCD_ERR("display is null\n");
 			ret = -1;
 			return ret;
 		}
@@ -829,7 +821,7 @@ static ssize_t oplus_display_get_panel_id(struct kobject *obj,
 			ret = mipi_dsi_dcs_write(&display->panel->mipi_device, 0xF0, value, sizeof(value));
 			ret = dsi_display_read_panel_reg(display, 0xDF, read, 8);
 			if (ret < 0) {
-				pr_err("failed to read da ret=%d\n", ret);
+				LCD_ERR("failed to read da ret=%d\n", ret);
 				return -EINVAL;
 			}
 			da = read[4];
@@ -838,19 +830,19 @@ static ssize_t oplus_display_get_panel_id(struct kobject *obj,
 		} else {
 			ret = dsi_display_read_panel_reg(display, 0xda, read, 1);
 			if (ret < 0) {
-				pr_err("failed to read da ret=%d\n", ret);
+				LCD_ERR("failed to read da ret=%d\n", ret);
 				return -EINVAL;
 			}
 			da = read[0];
 			ret = dsi_display_read_panel_reg(display, 0xdb, read, 1);
 			if (ret < 0) {
-				pr_err("failed to read da ret=%d\n", ret);
+				LCD_ERR("failed to read da ret=%d\n", ret);
 				return -EINVAL;
 			}
 			db = read[0];
 			ret = dsi_display_read_panel_reg(display, 0xdc, read, 1);
 			if (ret < 0) {
-				pr_err("failed to read da ret=%d\n", ret);
+				LCD_ERR("failed to read da ret=%d\n", ret);
 				return -EINVAL;
 			}
 			dc = read[0];
@@ -858,9 +850,7 @@ static ssize_t oplus_display_get_panel_id(struct kobject *obj,
 		ret = scnprintf(buf, PAGE_SIZE, "%02x %02x %02x\n", da, db, dc);
 
 	} else {
-		printk(KERN_ERR
-		       "%s oplus_display_get_panel_id, but now display panel status is not on\n",
-		       __func__);
+		LCD_ERR("display panel status is not on\n");
 	}
 
 	return ret;
@@ -874,14 +864,14 @@ static ssize_t oplus_display_get_panel_dsc(struct kobject *obj,
 	struct dsi_display *display = get_main_display();
 
 	if (!display || !display->panel) {
-		printk(KERN_INFO "oplus_display_get_panel_dsc and main display is null");
+		LCD_ERR("display is null\n");
 		return -EINVAL;
 	}
 
-	/* if (get_oplus_display_power_status() == OPLUS_DISPLAY_POWER_ON) { */
+	/* if (__oplus_get_power_status() == OPLUS_DISPLAY_POWER_ON) { */
 	if (display->panel->power_mode == SDE_MODE_DPMS_ON) {
 		if (get_main_display() == NULL) {
-			printk(KERN_INFO "oplus_display_get_panel_dsc and main display is null");
+			LCD_ERR("display is null\n");
 			ret = -1;
 			return ret;
 		}
@@ -897,9 +887,7 @@ static ssize_t oplus_display_get_panel_dsc(struct kobject *obj,
 		}
 
 	} else {
-		printk(KERN_ERR
-				"%s oplus_display_get_panel_dsc, but now display panel status is not on\n",
-				__func__);
+		LCD_ERR("display panel status is not on\n");
 	}
 
 	return ret;
@@ -914,13 +902,13 @@ static ssize_t oplus_display_dump_info(struct kobject *obj,
 	temp_display = get_main_display();
 
 	if (temp_display == NULL) {
-		printk(KERN_INFO "oplus_display_dump_info and main display is null");
+		LCD_ERR("display is null\n");
 		ret = -1;
 		return ret;
 	}
 
 	if (temp_display->modes == NULL) {
-		printk(KERN_INFO "oplus_display_dump_info and display modes is null");
+		LCD_ERR("display mode is null\n");
 		ret = -1;
 		return ret;
 	}
@@ -937,11 +925,11 @@ static ssize_t oplus_display_dump_info(struct kobject *obj,
 static ssize_t oplus_display_get_power_status(struct kobject *obj,
 		struct kobj_attribute *attr, char *buf)
 {
-	printk(KERN_INFO "oplus_display_get_power_status = %d, request power :%d\n",
-			get_oplus_display_power_status(), oplus_request_power_status);
+	LCD_INFO("oplus_display_get_power_status = %d, request power :%d\n",
+			__oplus_get_power_status(), oplus_request_power_status);
 
 	return sprintf(buf, "kernel power :%d   request power :%d\n",
-			get_oplus_display_power_status(), oplus_request_power_status);
+			__oplus_get_power_status(), oplus_request_power_status);
 }
 
 static ssize_t oplus_display_set_power_status(struct kobject *obj,
@@ -951,10 +939,9 @@ static ssize_t oplus_display_set_power_status(struct kobject *obj,
 	int temp_save = 0;
 
 	sscanf(buf, "%du", &temp_save);
-	printk(KERN_INFO "%s oplus_display_set_power_status = %d\n", __func__,
-			temp_save);
+	LCD_INFO("oplus_display_set_power_status = %d\n", temp_save);
 
-	__oplus_display_set_power_status(temp_save);
+	__oplus_set_request_power_status(temp_save);
 
 	return count;
 }
@@ -962,7 +949,7 @@ static ssize_t oplus_display_set_power_status(struct kobject *obj,
 static ssize_t oplus_display_get_closebl_flag(struct kobject *obj,
 	struct kobj_attribute *attr, char *buf)
 {
-	printk(KERN_INFO "oplus_display_get_closebl_flag = %d\n", lcd_closebl_flag);
+	LCD_INFO("oplus_display_get_closebl_flag = %d\n", lcd_closebl_flag);
 	return sprintf(buf, "%d\n", lcd_closebl_flag);
 }
 
@@ -972,20 +959,20 @@ static ssize_t oplus_display_set_closebl_flag(struct kobject *obj,
 {
 	int closebl = 0;
 	sscanf(buf, "%du", &closebl);
-	pr_err("lcd_closebl_flag = %d\n", closebl);
+	LCD_ERR("lcd_closebl_flag = %d\n", closebl);
 
 	if (1 != closebl) {
 		lcd_closebl_flag = 0;
 	}
 
-	pr_err("oplus_display_set_closebl_flag = %d\n", lcd_closebl_flag);
+	LCD_ERR("oplus_display_set_closebl_flag = %d\n", lcd_closebl_flag);
 	return count;
 }
 
 static ssize_t oplus_backlight_smooth_get_debug(struct kobject *obj,
 	struct kobj_attribute *attr, char *buf)
 {
-	pr_info("oplus_backlight_smooth_get_debug = %d\n", backlight_smooth_enable);
+	LCD_INFO("oplus_backlight_smooth_get_debug = %d\n", backlight_smooth_enable);
 	return sprintf(buf, "%d\n", backlight_smooth_enable);
 }
 
@@ -995,7 +982,7 @@ static ssize_t oplus_backlight_smooth_set_debug(struct kobject *obj,
 {
 	int bk_feature = 0;
 	sscanf(buf, "%du", &bk_feature);
-	pr_err("backlight_smooth_enable = %d\n", bk_feature);
+	LCD_ERR("backlight_smooth_enable = %d\n", bk_feature);
 
 	if (1 != bk_feature) {
 		backlight_smooth_enable = 0;
@@ -1003,7 +990,74 @@ static ssize_t oplus_backlight_smooth_set_debug(struct kobject *obj,
 		backlight_smooth_enable = 1;
 	}
 
-	pr_info("oplus_backlight_smooth_set_debug = %d\n", backlight_smooth_enable);
+	LCD_INFO("oplus_backlight_smooth_set_debug = %d\n", backlight_smooth_enable);
+	return count;
+}
+
+static ssize_t oplus_get_pwm_turbo_debug(struct kobject *obj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int rc = 0;
+	u32 enabled = 0;
+	struct dsi_display *display = get_main_display();
+	struct dsi_panel *panel = NULL;
+
+	if (!display || !display->panel) {
+		LCD_ERR("Invalid display or panel\n");
+		rc = -EINVAL;
+		return rc;
+	}
+
+	panel = display->panel;
+
+	if (!panel->oplus_priv.pwm_turbo_support) {
+		LCD_ERR("Falied to get pwm turbo status, because it is unsupport\n");
+		rc = -EFAULT;
+		return rc;
+	}
+
+	mutex_lock(&display->display_lock);
+	mutex_lock(&panel->panel_lock);
+
+	enabled = panel->oplus_priv.pwm_turbo_enabled;
+
+	mutex_unlock(&panel->panel_lock);
+	mutex_unlock(&display->display_lock);
+	LCD_INFO("Get pwm turbo status: %d\n", enabled);
+
+	return sprintf(buf, "%d\n", enabled);
+}
+
+static ssize_t oplus_set_pwm_turbo_debug(struct kobject *obj,
+		struct kobj_attribute *attr,
+		const char *buf, size_t count)
+{
+	int rc = 0;
+	u32 enabled = 0;
+	struct dsi_display *display = get_main_display();
+	struct dsi_panel *panel = NULL;
+
+	if (!display || !display->panel) {
+		LCD_ERR("Invalid display or panel\n");
+		rc = -EINVAL;
+		return rc;
+	}
+
+	panel = display->panel;
+
+	if (!panel->oplus_priv.pwm_turbo_support) {
+		LCD_ERR("Falied to set pwm turbo status, because it is unsupport\n");
+		rc = -EFAULT;
+		return rc;
+	}
+
+	sscanf(buf, "%du", &enabled);
+	LCD_INFO("Set pwm turbo status: %d\n", enabled);
+
+	mutex_lock(&display->display_lock);
+	oplus_panel_update_pwm_turbo_lock(panel, enabled);
+	mutex_unlock(&display->display_lock);
+
 	return count;
 }
 
@@ -1016,7 +1070,7 @@ static ssize_t oplus_get_ffc_mode_debug(struct kobject *obj,
 	struct dsi_panel *panel = NULL;
 
 	if (!display || !display->panel) {
-		DSI_ERR("Invalid display or panel\n");
+		LCD_ERR("Invalid display or panel\n");
 		rc = -EINVAL;
 		return rc;
 	}
@@ -1024,7 +1078,7 @@ static ssize_t oplus_get_ffc_mode_debug(struct kobject *obj,
 	panel = display->panel;
 
 	if (!panel->oplus_priv.ffc_enabled) {
-		DSI_ERR("Falied to get ffc mode, because ffc is disabled\n");
+		LCD_ERR("Falied to get ffc mode, because it is unsupport\n");
 		rc = -EFAULT;
 		return rc;
 	}
@@ -1032,6 +1086,7 @@ static ssize_t oplus_get_ffc_mode_debug(struct kobject *obj,
 	mutex_lock(&panel->oplus_ffc_lock);
 	ffc_mode = panel->oplus_priv.ffc_mode_index;
 	mutex_unlock(&panel->oplus_ffc_lock);
+	LCD_INFO("Get ffc mode: %d\n", ffc_mode);
 
 	return sprintf(buf, "%d\n", ffc_mode);
 }
@@ -1046,7 +1101,7 @@ static ssize_t oplus_set_ffc_mode_debug(struct kobject *obj,
 	struct dsi_panel *panel = NULL;
 
 	if (!display || !display->panel) {
-		DSI_ERR("Invalid display or panel\n");
+		LCD_ERR("Invalid display or panel\n");
 		rc = -EINVAL;
 		return rc;
 	}
@@ -1054,20 +1109,22 @@ static ssize_t oplus_set_ffc_mode_debug(struct kobject *obj,
 	panel = display->panel;
 
 	if (!panel->oplus_priv.ffc_enabled) {
-		DSI_ERR("FFC is disabled, failed to set ffc mode\n");
+		LCD_ERR("Falied to set ffc mode, because it is unsupport\n");
 		rc = -EFAULT;
 		return rc;
 	}
 
 	if(display->panel->power_mode != SDE_MODE_DPMS_ON) {
-		DSI_WARN("[%s] display panel is not on\n", __func__);
+		LCD_WARN("display panel is not on\n");
 		rc = -EFAULT;
 		return rc;
 	}
 
 	sscanf(buf, "%du", &ffc_mode);
+	LCD_INFO("Set ffc mode: %d\n", ffc_mode);
+
 	if (ffc_mode > FFC_MODE_MAX_COUNT) {
-		DSI_ERR("Invalid ffc mode:[%d]\n", ffc_mode);
+		LCD_ERR("Invalid ffc mode:[%d]\n", ffc_mode);
 		rc = -EINVAL;
 		return rc;
 	}
@@ -1100,7 +1157,7 @@ static void oplus_display_print_cmd_desc(const struct dsi_panel_cmd_set *cmd_set
 		memset(buf, 0, sizeof(buf));
 
 		if (msg.tx_len >= (PANEL_TX_MAX_BUF / 2)) {
-			pr_err("%s Skip current cmds[%d], invalid msg.tx_len=%d",
+			LCD_ERR("%s Skip current cmds[%d], invalid msg.tx_len=%d\n",
 					DISPLAY_TOOL_CMD_KEYWORD, i, msg.tx_len);
 			break;
 		}
@@ -1122,7 +1179,7 @@ static void oplus_display_print_cmd_desc(const struct dsi_panel_cmd_set *cmd_set
 			len += snprintf(buf + len, sizeof(buf) - len, " %02X", tx_buf[j]);
 		}
 
-		pr_err("%s%s", DISPLAY_TOOL_CMD_KEYWORD, buf);
+		LCD_ERR("%s%s\n", DISPLAY_TOOL_CMD_KEYWORD, buf);
 	}
 }
 
@@ -1160,14 +1217,14 @@ static int oplus_display_dump_dsi_command(struct dsi_display *display)
 	int i;
 
 	if (!display || !display->panel || !display->panel->cur_mode) {
-		pr_err("failed to get main dsi display\n");
+		LCD_ERR("failed to get main dsi display\n");
 		return -EFAULT;
 	}
 
 	mode = display->panel->cur_mode;
 
 	if (!mode || !mode->priv_info) {
-		pr_err("failed to get dsi display mode\n");
+		LCD_ERR("failed to get dsi display mode\n");
 		return -EFAULT;
 	}
 
@@ -1179,7 +1236,7 @@ static int oplus_display_dump_dsi_command(struct dsi_display *display)
 		if (!cmd_name || !cmd_sets[i].cmds || !cmd_sets[i].count) {
 			continue;
 		}
-		pr_err("%s%s: %s", DISPLAY_TOOL_CMD_KEYWORD, cmd_name,
+		LCD_ERR("%s%s: %s\n", DISPLAY_TOOL_CMD_KEYWORD, cmd_name,
 				cmd_sets[i].state == DSI_CMD_SET_STATE_LP ?
 				"dsi_lp_mode" : "dsi_hs_mode");
 		oplus_display_print_cmd_desc(&cmd_sets[i]);
@@ -1202,7 +1259,7 @@ static int oplus_dsi_panel_get_cmd_pkt_count(const char *data, u32 length,
 		packet_length += tmp;
 
 		if (packet_length > length) {
-			pr_err("format error packet_length[%d] length[%d] count[%d]\n",
+			LCD_ERR("format error packet_length[%d] length[%d] count[%d]\n",
 					packet_length, length, count);
 			return -EINVAL;
 		}
@@ -1284,11 +1341,17 @@ static ssize_t oplus_display_set_dsi_command(struct kobject *obj,
 	u32 old_dsi_command = oplus_dsi_command;
 	u32 packet_count = 0, size;
 	int rc = count, i;
-	char data[SZ_256];
+	char data[SZ_512] = "";
 	bool flush = false;
 
 	if (1 == dsi_cmd_panel_debug)
 		display = get_sec_display();
+
+	if (strlen(buf) >= SZ_512) {
+		LCD_ERR("input buffer size[%d] is out of range[%d]\n",
+				strlen(buf), SZ_512);
+		return -ENOMEM;
+	}
 
 	if (!cmd_bufs) {
 		cmd_bufs = kmalloc(SZ_4K, GFP_KERNEL);
@@ -1333,14 +1396,14 @@ static ssize_t oplus_display_set_dsi_command(struct kobject *obj,
 
 		while (sscanf(bufp, "%x%n", &value, &step) > 0) {
 			if (value > 0xff) {
-				pr_err("input reg don't large than 0xff\n");
+				LCD_ERR("input reg don't large than 0xff\n");
 				return -EINVAL;
 			}
 
 			cmd_bufs[cmd_counts++] = value;
 
 			if (cmd_counts >= SZ_4K) {
-				pr_err("wrong input reg len\n");
+				LCD_ERR("wrong input reg len\n");
 				cmd_counts = 0;
 				return -EFAULT;
 			}
@@ -1356,12 +1419,12 @@ static ssize_t oplus_display_set_dsi_command(struct kobject *obj,
 	}
 
 	if (old_dsi_command >= DSI_CMD_SET_MAX) {
-		pr_err("UnSupport dsi command set\n");
+		LCD_ERR("UnSupport dsi command set\n");
 		goto error;
 	}
 
 	if (!display || !display->panel || !display->panel->cur_mode) {
-		pr_err("failed to get main dsi display\n");
+		LCD_ERR("failed to get main dsi display\n");
 		rc = -EFAULT;
 		goto error;
 	}
@@ -1369,7 +1432,7 @@ static ssize_t oplus_display_set_dsi_command(struct kobject *obj,
 	mode = display->panel->cur_mode;
 
 	if (!mode || !mode->priv_info) {
-		pr_err("failed to get dsi display mode\n");
+		LCD_ERR("failed to get dsi display mode\n");
 		rc = -EFAULT;
 		goto error;
 	}
@@ -1383,7 +1446,7 @@ static ssize_t oplus_display_set_dsi_command(struct kobject *obj,
 			&packet_count);
 
 	if (rc) {
-		pr_err("commands failed, rc=%d\n", rc);
+		LCD_ERR("commands failed, rc=%d\n", rc);
 		goto error;
 	}
 
@@ -1400,7 +1463,7 @@ static ssize_t oplus_display_set_dsi_command(struct kobject *obj,
 			packet_count, cmds);
 
 	if (rc) {
-		pr_err("failed to create cmd packets, rc=%d\n", rc);
+		LCD_ERR("failed to create cmd packets, rc=%d\n", rc);
 		goto error_free_cmds;
 	}
 
@@ -1434,7 +1497,7 @@ error:
 }
 
 extern int oplus_panel_alpha;
-int interpolate(int x, int xa, int xb, int ya, int yb)
+int oplus_interpolate(int x, int xa, int xb, int ya, int yb)
 {
 	int bf, factor, plus;
 	int sub = 0;
@@ -1445,7 +1508,7 @@ int interpolate(int x, int xa, int xb, int ya, int yb)
 
 	return ya + factor + plus + sub;
 }
-EXPORT_SYMBOL(interpolate);
+EXPORT_SYMBOL(oplus_interpolate);
 
 static ssize_t oplus_display_get_dim_alpha(struct kobject *obj,
 		struct kobj_attribute *attr, char *buf)
@@ -1453,7 +1516,7 @@ static ssize_t oplus_display_get_dim_alpha(struct kobject *obj,
 	struct dsi_display *display = get_main_display();
 
 	if (!display || !display->panel) {
-		printk(KERN_INFO "oplus_display_set_hbm and main display is null");
+		LCD_ERR("display is null\n");
 		return -EINVAL;
 	}
 
@@ -1478,7 +1541,7 @@ static ssize_t oplus_display_get_dc_dim_alpha(struct kobject *obj,
 {
 	int ret = 0;
 
-	if (get_oplus_display_power_status() != OPLUS_DISPLAY_POWER_ON) {
+	if (__oplus_get_power_status() != OPLUS_DISPLAY_POWER_ON) {
 		ret = 0;
 	}
 
@@ -1558,12 +1621,12 @@ static int oplus_boe_data_dimming_process_unlock(int brightness, int enable)
 	int rc = 0;
 
 	if (!panel) {
-		pr_err("failed to find display panel\n");
+		LCD_ERR("failed to find display panel\n");
 		return -EINVAL;
 	}
 
 	if (!dsi_panel_initialized(panel)) {
-		pr_err("dsi panel is not init\n");
+		LCD_ERR("dsi panel is not init\n");
 		return -EINVAL;
 	}
 
@@ -1595,7 +1658,6 @@ next:
 
 	if (enable) {
 		rc = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_DATA_DIMMING_ON);
-
 	} else {
 		rc = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_DATA_DIMMING_OFF);
 	}
@@ -1657,7 +1719,7 @@ int oplus_backlight_remapping(int brightness)
 	} else if (i == count) {
 		bl_lvl = lut[count - 1].alpha;
 	} else {
-		bl_lvl = interpolate(brightness, lut[i - 1].brightness,
+		bl_lvl = oplus_interpolate(brightness, lut[i - 1].brightness,
 				lut[i].brightness, lut[i - 1].alpha,
 				lut[i].alpha);
 	}
@@ -1681,23 +1743,23 @@ int oplus_panel_process_dimming_v3_post(struct dsi_panel *panel, int brightness)
 			ret = oplus_boe_data_dimming_process_unlock(brightness, true);
 
 			if (ret) {
-				pr_err("failed to enable data dimming\n");
+				LCD_ERR("failed to enable data dimming\n");
 				goto error;
 			}
 
 			dimming_enable = true;
-			pr_err("Enter DC backlight v3\n");
+			LCD_ERR("Enter DC backlight v3\n");
 
 		} else {
 			ret = oplus_boe_data_dimming_process_unlock(brightness, false);
 
 			if (ret) {
-				pr_err("failed to enable data dimming\n");
+				LCD_ERR("failed to enable data dimming\n");
 				goto error;
 			}
 
 			dimming_enable = false;
-			pr_err("Exit DC backlight v3\n");
+			LCD_ERR("Exit DC backlight v3\n");
 		}
 	}
 
@@ -1730,7 +1792,7 @@ void oplus_panel_process_dimming_v2_post(struct dsi_panel *panel,
 						 current_vblank != drm_crtc_vblank_count(crtc),
 						 usecs_to_jiffies(frame_time_us + 1000));
 			if (!ret) {
-				pr_err("%s: crtc wait_event_timeout \n", __func__);
+				LCD_ERR("crtc wait_event_timeout \n");
 			}
 		}
 
@@ -1761,7 +1823,7 @@ int oplus_panel_process_dimming_v2(struct dsi_panel *panel, int bl_lvl,
 	if (!force_disable && oplus_dimlayer_bl_enable_v2_real &&
 			bl_lvl > 1 && bl_lvl < oplus_dimlayer_bl_alpha_v2) {
 		if (!oplus_seed_backlight) {
-			pr_err("Enter DC backlight v2\n");
+			LCD_ERR("Enter DC backlight v2\n");
 
 			if (!oplus_skip_datadimming_sync &&
 					oplus_last_backlight != 0 &&
@@ -1775,7 +1837,7 @@ int oplus_panel_process_dimming_v2(struct dsi_panel *panel, int bl_lvl,
 		oplus_datadimming_v2_need_flush = true;
 
 	} else if (oplus_seed_backlight) {
-		pr_err("Exit DC backlight v2\n");
+		LCD_ERR("Exit DC backlight v2\n");
 		oplus_seed_backlight = 0;
 		oplus_dc2_alpha = 0;
 		oplus_datadimming_v2_need_flush = true;
@@ -1800,7 +1862,7 @@ int oplus_panel_process_dimming_v2(struct dsi_panel *panel, int bl_lvl,
 						 usecs_to_jiffies(frame_time_us + 1000));
 
 			if (!ret) {
-				pr_err("%s: crtc wait_event_timeout \n", __func__);
+				LCD_ERR("crtc wait_event_timeout\n");
 			}
 		}
 	}
@@ -1838,13 +1900,13 @@ static ssize_t oplus_display_set_dimlayer_enable(struct kobject *obj,
 		mutex_lock(&display->display_lock);
 
 		if (!dsi_connector || !dsi_connector->state || !dsi_connector->state->crtc) {
-			pr_err("[%s]: display not ready\n", __func__);
+			LCD_ERR("display not ready\n");
 
 		} else {
 			err = drm_crtc_vblank_get(dsi_connector->state->crtc);
 
 			if (err) {
-				pr_err("failed to get crtc vblank, error=%d\n", err);
+				LCD_ERR("failed to get crtc vblank, error=%d\n", err);
 
 			} else {
 				/* do vblank put after 7 frames */
@@ -1910,7 +1972,7 @@ static ssize_t oplus_display_set_esd_status(struct kobject *obj,
 
 	sscanf(buf, "%du", &enable);
 
-	pr_err("debug for oplus_display_set_esd_status, the enable value = %d\n",
+	LCD_ERR("debug for oplus_display_set_esd_status, the enable value = %d\n",
 			enable);
 
 	if (!display) {
@@ -1925,13 +1987,13 @@ static ssize_t oplus_display_set_esd_status(struct kobject *obj,
 		if (display->panel->esd_config.esd_enabled) {
 			sde_connector_schedule_status_work(display->drm_conn, false);
 			display->panel->esd_config.esd_enabled = false;
-			pr_err("disable esd work");
+			LCD_ERR("disable esd work\n");
 		}
 	} else {
 		if (!display->panel->esd_config.esd_enabled) {
 			sde_connector_schedule_status_work(display->drm_conn, true);
 			display->panel->esd_config.esd_enabled = true;
-			pr_err("enabled esd work");
+			LCD_ERR("enabled esd work\n");
 		}
 	}
 
@@ -1942,36 +2004,21 @@ static ssize_t oplus_display_notify_panel_blank(struct kobject *obj,
 		struct kobj_attribute *attr,
 		const char *buf, size_t count)
 {
-	struct msm_drm_notifier notifier_data;
 	struct dsi_display *display = get_main_display();
-	int blank;
 	int temp_save = 0;
 
 	if (display == NULL) {
-		pr_err("%s error :NULL display", __func__);
+		LCD_ERR("display is null\n");
 		return count;
 	}
 
 	sscanf(buf, "%du", &temp_save);
-	printk(KERN_INFO "%s oplus_display_notify_panel_blank = %d\n", __func__,
-			temp_save);
+	LCD_INFO("oplus_display_notify_panel_blank = %d\n", temp_save);
 
 	if (temp_save == 1) {
-		blank = MSM_DRM_BLANK_UNBLANK;
-		notifier_data.data = &blank;
-		notifier_data.id = 0;
-		msm_drm_notifier_call_chain(MSM_DRM_EARLY_EVENT_BLANK,
-				&notifier_data);
-		msm_drm_notifier_call_chain(MSM_DRM_EVENT_BLANK,
-				&notifier_data);
-		oplus_panel_event_notification_trigger(display, DRM_PANEL_EVENT_UNBLANK);
+		oplus_event_data_notifier_trigger(DRM_PANEL_EVENT_UNBLANK, 0, true);
 	} else if (temp_save == 0) {
-		blank = MSM_DRM_BLANK_POWERDOWN;
-		notifier_data.data = &blank;
-		notifier_data.id = 0;
-		msm_drm_notifier_call_chain(MSM_DRM_EARLY_EVENT_BLANK,
-				&notifier_data);
-		oplus_panel_event_notification_trigger(display, DRM_PANEL_EVENT_BLANK);
+		oplus_event_data_notifier_trigger(DRM_PANEL_EVENT_BLANK, 0, true);
 	}
 
 	return count;
@@ -1991,7 +2038,7 @@ static ssize_t oplus_set_ffl_setting(struct kobject *obj,
 	int enable = 0;
 
 	sscanf(buf, "%du", &enable);
-	printk(KERN_INFO "%s oplus_set_ffl_setting = %d\n", __func__, enable);
+	LCD_INFO("oplus_set_ffl_setting = %d\n", enable);
 
 	oplus_ffl_set(enable);
 
@@ -2022,12 +2069,12 @@ int dsi_update_dynamic_osc_clock(void)
 	int osc_clock_rate = dynamic_osc_clock;
 
 	if (!display||!display->panel) {
-		pr_err("failed for: %s %d\n", __func__, __LINE__);
+		LCD_ERR("display is null\n");
 		return -EINVAL;
 	}
 
 	if (!display->panel->oplus_priv.is_osc_support) {
-		pr_err("not support osc\n");
+		LCD_ERR("not support osc\n");
 		return 0;
 	}
 
@@ -2051,12 +2098,12 @@ int dsi_update_dynamic_osc_clock(void)
 		} else if (osc_clock_rate == display->panel->oplus_priv.osc_clk_mode1_rate) {
 			rc = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_OSC_CLK_MODEO1);
 		} else {
-			pr_err("[%s]not support osc clk rate=%d\n", __func__, osc_clock_rate);
+			LCD_ERR("unsupport osc clk rate=%d\n", osc_clock_rate);
 		}
 		if (rc)
-			pr_err("Failed to configure osc dynamic clk\n");
+			LCD_ERR("Failed to configure osc dynamic clk\n");
 	} else {
-		pr_info("[%s] osc clk rate is 0, not config !\n", __func__);
+		LCD_INFO("osc clk rate is 0, not config\n");
 	}
 
 	if (display->config.panel_mode == DSI_OP_CMD_MODE) {
@@ -2078,15 +2125,14 @@ static ssize_t oplus_display_get_dynamic_osc_clock(struct kobject *obj,
 	int rc = 0;
 
 	if (!display) {
-		pr_err("failed for: %s %d\n", __func__, __LINE__);
+		LCD_ERR("display is null\n");
 		return -EINVAL;
 	}
 
 	mutex_lock(&display->display_lock);
 
 	rc = snprintf(buf, PAGE_SIZE, "%d\n", dynamic_osc_clock);
-	pr_debug("%s: read dsi clk rate %d\n", __func__,
-		 dynamic_osc_clock);
+	LCD_INFO("read dsi clk rate %d\n", dynamic_osc_clock);
 
 	mutex_unlock(&display->display_lock);
 
@@ -2102,7 +2148,7 @@ static ssize_t oplus_display_set_dynamic_osc_clock(struct kobject *obj,
 	int rc = 0;
 
 	if (!display || !display->panel) {
-		pr_err("failed for: %s %d\n", __func__, __LINE__);
+		LCD_ERR("display is null\n");
 		return -EINVAL;
 	}
 
@@ -2110,29 +2156,29 @@ static ssize_t oplus_display_set_dynamic_osc_clock(struct kobject *obj,
 		sscanf(buf, "%du", &osc_clk);
 		dynamic_osc_clock = osc_clk;
 		if (display->panel->panel_mode != DSI_OP_CMD_MODE) {
-			pr_err("only supported for command mode\n");
+			LCD_ERR("only supported for command mode\n");
 			return -EFAULT;
 		}
 
-		pr_info("%s: osc clk param value: '%d'\n", __func__, osc_clk);
+		LCD_INFO("osc clk param value: '%d'\n", osc_clk);
 		dsi_update_dynamic_osc_clock();
 		return count;
 	}
 
-	/* if (get_oplus_display_power_status() != OPLUS_DISPLAY_POWER_ON) { */
+	/* if (__oplus_get_power_status() != OPLUS_DISPLAY_POWER_ON) { */
 	if (display->panel->power_mode != SDE_MODE_DPMS_ON) {
-		printk(KERN_ERR"%s display panel in off status\n", __func__);
+		LCD_INFO("display panel in off status\n");
 		return -EFAULT;
 	}
 
 	sscanf(buf, "%du", &osc_clk);
 
 	if (display->panel->panel_mode != DSI_OP_CMD_MODE) {
-		pr_err("only supported for command mode\n");
+		LCD_ERR("only supported for command mode\n");
 		return -EFAULT;
 	}
 
-	pr_info("%s: osc clk param value: '%d'\n", __func__, osc_clk);
+	LCD_INFO("osc clk param value: '%d'\n", osc_clk);
 
 	mutex_lock(&display->display_lock);
 	mutex_lock(&display->panel->panel_lock);
@@ -2156,7 +2202,7 @@ static ssize_t oplus_display_set_dynamic_osc_clock(struct kobject *obj,
 	}
 
 	if (rc) {
-		pr_err("Failed to configure osc dynamic clk\n");
+		LCD_ERR("Failed to configure osc dynamic clk\n");
 
 	} else {
 		rc = count;
@@ -2182,7 +2228,7 @@ static ssize_t oplus_display_get_max_brightness_show(struct kobject *obj,
 	struct dsi_display *display = get_main_display();
 
 	if (!display) {
-		pr_err("failed for: %s %d\n", __func__, __LINE__);
+		LCD_ERR("display is null\n");
 		return -EINVAL;
 	}
 
@@ -2207,17 +2253,15 @@ static ssize_t oplus_display_get_ccd_check(struct kobject *obj,
 	return sprintf(buf, "%d\n", ccd_check);
 }
 
-int dsi_display_oplus_set_power(struct drm_connector *connector,
+int oplus_display_set_power(struct drm_connector *connector,
 		int power_mode, void *disp)
 {
 	struct dsi_display *display = disp;
 	int rc = 0;
-	struct msm_drm_notifier notifier_data;
-	int blank;
 	bool notify_off = false;
 
 	if (!display || !display->panel) {
-		pr_err("invalid display/panel\n");
+		LCD_ERR("display is null\n");
 		return -EINVAL;
 	}
 
@@ -2232,17 +2276,6 @@ int dsi_display_oplus_set_power(struct drm_connector *connector,
 			notify_off = true;
 		}
 
-		memset(&notifier_data, 0, sizeof(notifier_data));
-
-		if (notify_off) {
-			blank = MSM_DRM_BLANK_POWERDOWN;
-			notifier_data.data = &blank;
-			notifier_data.id = 0;
-
-			msm_drm_notifier_call_chain(MSM_DRM_EARLY_EVENT_BLANK,
-					&notifier_data);
-		}
-
 #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
 		if (oplus_ofp_is_supported()) {
 			oplus_ofp_power_mode_handle(display, power_mode);
@@ -2250,21 +2283,15 @@ int dsi_display_oplus_set_power(struct drm_connector *connector,
 #endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 
 		if (notify_off) {
-			msm_drm_notifier_call_chain(MSM_DRM_EVENT_BLANK,
-					&notifier_data);
-			oplus_panel_event_notification_trigger(display, DRM_PANEL_EVENT_BLANK);
+			oplus_panel_event_data_notifier_trigger(display->panel,
+					DRM_PANEL_EVENT_BLANK, 0, true);
 		}
 
-		set_oplus_display_power_status(OPLUS_DISPLAY_POWER_DOZE_SUSPEND);
+		__oplus_set_power_status(OPLUS_DISPLAY_POWER_DOZE_SUSPEND);
 		break;
 
 	case SDE_MODE_DPMS_ON:
-		blank = MSM_DRM_BLANK_UNBLANK;
-		notifier_data.data = &blank;
-		notifier_data.id = 0;
-		pr_err("[%s:%d] SDE_MODE_DPMS_ON\n", __func__, __LINE__);
-		msm_drm_notifier_call_chain(MSM_DRM_EARLY_EVENT_BLANK,
-				&notifier_data);
+		LCD_INFO("SDE_MODE_DPMS_ON\n");
 
 #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
 		if (oplus_ofp_is_supported()) {
@@ -2272,10 +2299,9 @@ int dsi_display_oplus_set_power(struct drm_connector *connector,
 		}
 #endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 
-		set_oplus_display_power_status(OPLUS_DISPLAY_POWER_ON);
-		msm_drm_notifier_call_chain(MSM_DRM_EVENT_BLANK,
-				&notifier_data);
-		oplus_panel_event_notification_trigger(display, DRM_PANEL_EVENT_UNBLANK);
+		__oplus_set_power_status(OPLUS_DISPLAY_POWER_ON);
+		oplus_panel_event_data_notifier_trigger(display->panel,
+				DRM_PANEL_EVENT_UNBLANK, 0, true);
 		break;
 
 	case SDE_MODE_DPMS_OFF:
@@ -2285,13 +2311,13 @@ int dsi_display_oplus_set_power(struct drm_connector *connector,
 		}
 #endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 
-		pr_err("[%s:%d] SDE_MODE_DPMS_OFF\n", __func__, __LINE__);
+		LCD_INFO("SDE_MODE_DPMS_OFF\n");
 		break;
 	default:
 		return rc;
 	}
 
-	DSI_DEBUG("Power mode transition from %d to %d %s",
+	LCD_DEBUG("Power mode transition from %d to %d %s\n",
 		display->panel->power_mode, power_mode,
 		rc ? "failed" : "successful");
 
@@ -2301,7 +2327,7 @@ int dsi_display_oplus_set_power(struct drm_connector *connector,
 
 	return rc;
 }
-EXPORT_SYMBOL(dsi_display_oplus_set_power);
+EXPORT_SYMBOL(oplus_display_set_power);
 
 static int oplus_display_find_vreg_by_name(const char *name)
 {
@@ -2323,10 +2349,10 @@ static int oplus_display_find_vreg_by_name(const char *name)
 
 	for (i = 0; i < count; i++) {
 		vreg = &dsi_reg->vregs[i];
-		pr_err("%s : find  %s", __func__, vreg->vreg_name);
+		LCD_INFO("finding vreg: %s\n", vreg->vreg_name);
 
 		if (!strcmp(vreg->vreg_name, name)) {
-			pr_err("%s : find the vreg %s", __func__, name);
+			LCD_INFO("find the vreg: %s\n", name);
 			return i;
 
 		} else {
@@ -2334,7 +2360,7 @@ static int oplus_display_find_vreg_by_name(const char *name)
 		}
 	}
 
-	pr_err("%s : dose not find the vreg [%s]", __func__, name);
+	LCD_ERR("dose not find the vreg: %s\n", name);
 
 	return -EINVAL;
 }
@@ -2358,7 +2384,7 @@ static u32 update_current_voltage(u32 id)
 	pwr_id = oplus_display_find_vreg_by_name(panel_vol_bak[id].pwr_name);
 
 	if (pwr_id < 0) {
-		pr_err("%s: can't find the pwr_id, please check the vreg name\n", __func__);
+		LCD_ERR("can't find the pwr_id, please check the vreg name\n");
 		return pwr_id;
 	}
 
@@ -2383,7 +2409,7 @@ static ssize_t oplus_display_get_panel_pwr(struct kobject *obj,
 		ret = update_current_voltage(panel_vol_bak[i].voltage_id);
 
 		if (ret < 0) {
-			pr_err("%s : update_current_voltage error = %d\n", __func__, ret);
+			LCD_ERR("update_current_voltage error = %d\n", ret);
 
 		} else {
 			panel_vol_bak[i].voltage_current = ret;
@@ -2411,8 +2437,8 @@ static ssize_t oplus_display_set_panel_pwr(struct kobject *obj,
 	sscanf(buf, "%d %d", &panel_vol_id, &panel_vol_value);
 	panel_vol_id = panel_vol_id & 0x0F;
 
-	pr_err("debug for %s, buf = [%s], id = %d value = %d, count = %d\n",
-			__func__, buf, panel_vol_id, panel_vol_value, count);
+	LCD_INFO("buf = [%s], id = %d value = %d, count = %d\n",
+			buf, panel_vol_id, panel_vol_value, count);
 
 	if (panel_vol_id < 0 || panel_vol_id > PANEL_VOLTAGE_ID_MAX) {
 		return -EINVAL;
@@ -2432,7 +2458,7 @@ static ssize_t oplus_display_set_panel_pwr(struct kobject *obj,
 	}
 
 	if (panel_vol_id == PANEL_VOLTAGE_ID_VG_BASE) {
-		pr_err("%s: set the VGH_L pwr = %d \n", __func__, panel_vol_value);
+		LCD_INFO("set the VGH_L pwr = %d \n", panel_vol_value);
 		panel_pwr_vg_base = panel_vol_value;
 		return count;
 	}
@@ -2442,8 +2468,7 @@ static ssize_t oplus_display_set_panel_pwr(struct kobject *obj,
 	pwr_id = oplus_display_find_vreg_by_name(panel_vol_bak[panel_vol_id].pwr_name);
 
 	if (pwr_id < 0) {
-		pr_err("%s: can't find the vreg name, please re-check vreg name: %s \n",
-				__func__,
+		LCD_ERR("can't find the vreg name, please re-check vreg name: %s \n",
 				panel_vol_bak[panel_vol_id].pwr_name);
 		return pwr_id;
 	}
@@ -2453,7 +2478,7 @@ static ssize_t oplus_display_set_panel_pwr(struct kobject *obj,
 	rc = regulator_set_voltage(dsi_reg->vreg, panel_vol_value, panel_vol_value);
 
 	if (rc) {
-		pr_err("Set voltage(%s) fail, rc=%d\n",
+		LCD_ERR("Set voltage(%s) fail, rc=%d\n",
 				dsi_reg->vreg_name, rc);
 		return -EINVAL;
 	}
@@ -2471,15 +2496,17 @@ static ssize_t oplus_display_get_dsi_log_switch(struct kobject *obj,
 		BIT(1) --> backlight log\n \
 		BIT(2) --> common log\n \
 		BIT(3) --> ofp log\n \
-		current value:0x%x\n", oplus_dsi_log_type);
+		BIT(4) --> vrr log\n \
+		BIT(5) --> lcd log\n \
+		current value: 0x%X\n", oplus_dsi_log_type);
 }
 
 static ssize_t oplus_display_set_dsi_log_switch(struct kobject *obj,
 		struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	sscanf(buf, "%x", &oplus_dsi_log_type);
-	pr_err("debug for %s, buf = [%s], oplus_dsi_log_type = %d , count = %d\n",
-			__func__, buf, oplus_dsi_log_type, count);
+	LCD_INFO("buf = [%s], oplus_dsi_log_type = 0x%X , count = %d\n",
+			buf, oplus_dsi_log_type, count);
 
 	return count;
 }
@@ -2488,26 +2515,29 @@ static ssize_t oplus_display_get_trace_enable_attr(struct kobject *obj,
 	struct kobj_attribute *attr, char *buf)
 {
 	if (!buf) {
-		DSI_ERR("Invalid params\n");
+		LCD_ERR("Invalid params\n");
 		return -EINVAL;
 	}
 
 	return sprintf(buf, "dynamic trace enable\n \
 		0x0 --> disable all trace\n \
 		BIT(0) --> enable ofp trace\n \
-		current value:0x%x\n", oplus_display_trace_enable);
+		BIT(1) --> enable vrr trace\n \
+		BIT(2) --> enable lcd trace\n \
+		current value: 0x%X\n", oplus_display_trace_enable);
 }
 
 static ssize_t oplus_display_set_trace_enable_attr(struct kobject *obj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	if (!buf) {
-		DSI_ERR("Invalid params\n");
+		LCD_ERR("Invalid params\n");
 		return count;
 	}
 
-	sscanf(buf, "%u", &oplus_display_trace_enable);
-	DSI_INFO("oplus_display_trace_enable:0x%x\n", oplus_display_trace_enable);
+	sscanf(buf, "%x", &oplus_display_trace_enable);
+	LCD_INFO("buf = [%s], oplus_display_trace_enable = 0x%X , count = %d\n",
+			buf, oplus_display_trace_enable, count);
 
 	return count;
 }
@@ -2577,6 +2607,8 @@ static OPLUS_ATTR(dynamic_te, S_IRUGO|S_IWUSR, oplus_adfr_get_dynamic_te, oplus_
 
 static OPLUS_ATTR(backlight_smooth, S_IRUGO|S_IWUSR, oplus_backlight_smooth_get_debug,
 		oplus_backlight_smooth_set_debug);
+static OPLUS_ATTR(pwm_turbo, S_IRUGO|S_IWUSR, oplus_get_pwm_turbo_debug,
+		oplus_set_pwm_turbo_debug);
 static OPLUS_ATTR(ffc_mode, S_IRUGO|S_IWUSR, oplus_get_ffc_mode_debug,
 		oplus_set_ffc_mode_debug);
 #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
@@ -2629,6 +2661,7 @@ static struct attribute *oplus_display_attrs[] = {
 	&oplus_attr_dsi_log_switch.attr,
 	&oplus_attr_dither.attr,
 	&oplus_attr_trace_enable.attr,
+	&oplus_attr_pwm_turbo.attr,
 	&oplus_attr_ffc_mode.attr,
 #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
 	&oplus_attr_fp_type.attr,

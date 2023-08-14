@@ -410,18 +410,7 @@ static int dsi_panel_set_pinctrl_state(struct dsi_panel *panel, bool enable)
 				panel->name, rc);
 
 #ifdef OPLUS_FEATURE_DISPLAY
-	if (oplus_adfr_is_support() &&
-		(oplus_adfr_get_vsync_mode() == OPLUS_DOUBLE_TE_VSYNC)) {
-		if (enable)
-			state = panel->pinctrl.te1_active;
-		else
-			state = panel->pinctrl.te1_suspend;
-
-		rc = pinctrl_select_state(panel->pinctrl.pinctrl, state);
-		if (rc)
-			DSI_ERR("[%s] failed to set te1 pin state, rc=%d\n",
-					panel->name, rc);
-	}
+	rc |= oplus_panel_set_pinctrl_state(panel, enable);
 #endif /* OPLUS_FEATURE_DISPLAY */
 
 	return rc;
@@ -578,16 +567,17 @@ int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 	if (!panel || !panel->cur_mode)
 		return -EINVAL;
 
+#ifdef OPLUS_FEATURE_DISPLAY
+	oplus_panel_cmd_switch(panel, &type);
+	oplus_panel_cmd_print(panel, type);
+#endif /* OPLUS_FEATURE_DISPLAY */
+
 	mode = panel->cur_mode;
 
 	cmds = mode->priv_info->cmd_sets[type].cmds;
 	count = mode->priv_info->cmd_sets[type].count;
 	state = mode->priv_info->cmd_sets[type].state;
 	SDE_EVT32(type, state, count);
-
-#ifdef OPLUS_FEATURE_DISPLAY
-	oplus_tx_cmd_print(type);
-#endif /* OPLUS_FEATURE_DISPLAY */
 
 	if (count == 0) {
 		DSI_DEBUG("[%s] No commands to be sent for state(%d)\n",
@@ -638,9 +628,15 @@ int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 #endif
 
 error:
+#ifdef OPLUS_FEATURE_DISPLAY
+	if (rc) {
+		DSI_ERR("[LCD][%s] failed to send %s, rc=%d\n",
+				panel->oplus_priv.vendor_name, cmd_set_prop_map[type], rc);
+		WARN_ON(rc);
+	}
+#endif /* OPLUS_FEATURE_DISPLAY */
 	return rc;
 }
-
 #ifdef OPLUS_FEATURE_DISPLAY
 EXPORT_SYMBOL(dsi_panel_tx_cmd_set);
 #endif /* OPLUS_FEATURE_DISPLAY */
@@ -698,26 +694,7 @@ static int dsi_panel_pinctrl_init(struct dsi_panel *panel)
 	}
 
 #ifdef OPLUS_FEATURE_DISPLAY
-	/* OPLUS_FEATURE_ADFR, qcom patch for two TE source */
-	if (oplus_adfr_is_support() &&
-			(oplus_adfr_get_vsync_mode() == OPLUS_DOUBLE_TE_VSYNC) &&
-			!strcmp(panel->type, "primary")){
-		panel->pinctrl.te1_active =
-			pinctrl_lookup_state(panel->pinctrl.pinctrl, "te1_active");
-		if (IS_ERR_OR_NULL(panel->pinctrl.te1_active)) {
-			rc = PTR_ERR(panel->pinctrl.te1_active);
-			DSI_ERR("failed to get pinctrl te1_active state, rc=%d\n", rc);
-			goto error;
-		}
-
-		panel->pinctrl.te1_suspend =
-			pinctrl_lookup_state(panel->pinctrl.pinctrl, "te1_suspend");
-		if (IS_ERR_OR_NULL(panel->pinctrl.te1_suspend)) {
-			rc = PTR_ERR(panel->pinctrl.te1_suspend);
-			DSI_ERR("failed to get pinctrl te1_suspend state, rc=%d\n", rc);
-			goto error;
-		}
-	}
+	rc |= oplus_panel_pinctrl_init(panel);
 #endif /* OPLUS_FEATURE_DISPLAY */
 
 error:
@@ -843,11 +820,7 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 	if (panel->host_config.ext_bridge_mode)
 		return 0;
 
-#ifdef OPLUS_FEATURE_DISPLAY
-	LCD_DEBUG_BACKLIGHT("backlight type:%d lvl:%d\n", bl->type, bl_lvl);
-#else /* OPLUS_FEATURE_DISPLAY */
 	DSI_DEBUG("backlight type:%d lvl:%d\n", bl->type, bl_lvl);
-#endif /* OPLUS_FEATURE_DISPLAY */
 
 	switch (bl->type) {
 	case DSI_BACKLIGHT_WLED:
@@ -2150,6 +2123,13 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-esd-switch-page-command",
 	"qcom,dsi-panel-date-switch-command",
 	"qcom,mdss-dsi-panel-init-command",
+	"qcom,mdss-dsi-pwm-turbo-on-command",
+	"qcom,mdss-dsi-pwm-turbo-off-command",
+	"qcom,mdss-dsi-pwm-turbo-hbm-on-command",
+	"qcom,mdss-dsi-pwm-turbo-hbm-off-command",
+	"qcom,mdss-dsi-pwm-turbo-aor-on-command",
+	"qcom,mdss-dsi-pwm-turbo-aor-off-command",
+	"qcom,mdss-dsi-pwm-turbo-timing-switch-command",
 #endif /* OPLUS_FEATURE_DISPLAY */
 #if defined(CONFIG_PXLW_IRIS)
 	"qcom,mdss-dsi-iris-switch-tsp-vsync-scanline-command",
@@ -2241,6 +2221,13 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-esd-switch-page-command-state",
 	"qcom,dsi-panel-date-switch-command-state",
 	"qcom,mdss-dsi-panel-init-command-state",
+	"qcom,mdss-dsi-pwm-turbo-on-command-state",
+	"qcom,mdss-dsi-pwm-turbo-off-command-state",
+	"qcom,mdss-dsi-pwm-turbo-hbm-on-command-state",
+	"qcom,mdss-dsi-pwm-turbo-hbm-off-command-state",
+	"qcom,mdss-dsi-pwm-turbo-aor-on-command-state",
+	"qcom,mdss-dsi-pwm-turbo-aor-off-command-state",
+	"qcom,mdss-dsi-pwm-turbo-timing-switch-command-state",
 #endif /* OPLUS_FEATURE_DISPLAY */
 #if defined(CONFIG_PXLW_IRIS)
 	"qcom,mdss-dsi-iris-switch-tsp-vsync-scanline-command-state",
@@ -4116,7 +4103,7 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 	}
 
 #ifdef OPLUS_FEATURE_DISPLAY
-	rc = dsi_panel_parse_oplus_config(panel);
+	rc = oplus_panel_parse_config(panel);
 	if (rc)
 		DSI_ERR("failed to parse panel config, rc=%d\n", rc);
 
@@ -4911,7 +4898,7 @@ int dsi_panel_set_lp1(struct dsi_panel *panel)
 		DSI_ERR("[%s] failed to send DSI_CMD_SET_LP1 cmd, rc=%d\n",
 		       panel->name, rc);
 #ifdef OPLUS_FEATURE_DISPLAY
-	set_oplus_display_power_status(OPLUS_DISPLAY_POWER_DOZE);
+	__oplus_set_power_status(OPLUS_DISPLAY_POWER_DOZE);
 #endif /* OPLUS_FEATURE_DISPLAY */
 exit:
 	mutex_unlock(&panel->panel_lock);
@@ -4936,7 +4923,7 @@ int dsi_panel_set_lp2(struct dsi_panel *panel)
 		DSI_ERR("[%s] failed to send DSI_CMD_SET_LP2 cmd, rc=%d\n",
 		       panel->name, rc);
 #ifdef OPLUS_FEATURE_DISPLAY
-	set_oplus_display_power_status(OPLUS_DISPLAY_POWER_DOZE_SUSPEND);
+	__oplus_set_power_status(OPLUS_DISPLAY_POWER_DOZE_SUSPEND);
 #endif /* OPLUS_FEATURE_DISPLAY */
 exit:
 	mutex_unlock(&panel->panel_lock);
@@ -4973,7 +4960,7 @@ int dsi_panel_set_nolp(struct dsi_panel *panel)
 		DSI_ERR("[%s] failed to send DSI_CMD_SET_NOLP cmd, rc=%d\n",
 		       panel->name, rc);
 #ifdef OPLUS_FEATURE_DISPLAY
-	set_oplus_display_power_status(OPLUS_DISPLAY_POWER_ON);
+	__oplus_set_power_status(OPLUS_DISPLAY_POWER_ON);
 #endif /* OPLUS_FEATURE_DISPLAY */
 exit:
 	mutex_unlock(&panel->panel_lock);
@@ -5428,13 +5415,18 @@ int dsi_panel_enable(struct dsi_panel *panel)
 #endif
 
 #ifdef OPLUS_FEATURE_DISPLAY
+	/* send pwm turbo dcs */
+	if (oplus_panel_pwm_turbo_is_enabled(panel)) {
+		oplus_panel_send_pwm_turbo_dcs_unlock(panel, true);
+	}
+
 	if (panel->oplus_priv.ffc_enabled) {
 		oplus_panel_set_ffc_mode_unlock(panel);
 	}
 
-	rc = dsi_panel_seed_mode(panel, oplus_display_get_seed_mode());
+	rc = dsi_panel_seed_mode(panel, __oplus_get_seed_mode());
 	if (rc) {
-		DSI_ERR("Failed to set seed mode: %d\n", oplus_display_get_seed_mode());
+		DSI_ERR("Failed to set seed mode: %d\n", __oplus_get_seed_mode());
 		goto error;
 	}
 
@@ -5446,7 +5438,7 @@ int dsi_panel_enable(struct dsi_panel *panel)
 
 #ifdef OPLUS_FEATURE_DISPLAY
 	panel->need_power_on_backlight = true;
-	set_oplus_display_power_status(OPLUS_DISPLAY_POWER_ON);
+	__oplus_set_power_status(OPLUS_DISPLAY_POWER_ON);
 	panel->power_mode = SDE_MODE_DPMS_ON;
 #endif /* OPLUS_FEATURE_DISPLAY */
 
@@ -5464,6 +5456,11 @@ int dsi_panel_post_enable(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 
+#ifdef OPLUS_FEATURE_DISPLAY
+	/* initialize panel status */
+	oplus_panel_init(panel);
+#endif /* OPLUS_FEATURE_DISPLAY */
+
 	mutex_lock(&panel->panel_lock);
 
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_POST_ON);
@@ -5472,10 +5469,6 @@ int dsi_panel_post_enable(struct dsi_panel *panel)
 		       panel->name, rc);
 		goto error;
 	}
-
-#ifdef OPLUS_FEATURE_DISPLAY
-	oplus_panel_init(panel);
-#endif /* OPLUS_FEATURE_DISPLAY */
 error:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
@@ -5562,7 +5555,7 @@ int dsi_panel_disable(struct dsi_panel *panel)
 #endif
 	panel->panel_initialized = false;
 #ifdef OPLUS_FEATURE_DISPLAY
-	set_oplus_display_power_status(OPLUS_DISPLAY_POWER_OFF);
+	__oplus_set_power_status(OPLUS_DISPLAY_POWER_OFF);
 	oplus_global_hbm_flags = 0;
 #endif /* OPLUS_FEATURE_DISPLAY */
 	panel->power_mode = SDE_MODE_DPMS_OFF;

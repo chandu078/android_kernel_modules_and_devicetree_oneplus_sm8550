@@ -18,7 +18,7 @@ int oplus_panel_parse_esd_reg_read_configs(struct dsi_panel *panel)
 	struct dsi_parser_utils *utils = &panel->utils;
 
 	if (!panel) {
-		DSI_ERR("Invalid Params\n");
+		LCD_ERR("Invalid Params\n");
 		return -EINVAL;
 	}
 
@@ -35,18 +35,18 @@ int oplus_panel_parse_esd_reg_read_configs(struct dsi_panel *panel)
 	rc = utils->read_u32(utils->data, "oplus,mdss-dsi-panel-status-match-modes", &tmp);
 	if (!rc) {
 		esd_config->status_match_modes = tmp;
-		DSI_INFO("Successed to read ESD match modes=0x%08X\n",
+		LCD_INFO("Successed to read ESD match modes=0x%08X\n",
 				esd_config->status_match_modes);
 	} else {
 		esd_config->status_match_modes = 0x0;
-		DSI_ERR("Failed to read ESD match modes, set default modes=0x%08X\n",
+		LCD_ERR("Failed to read ESD match modes, set default modes=0x%08X\n",
 				esd_config->status_match_modes);
 	}
 
 	return rc;
 }
 
-bool oplus_display_validate_reg_read(struct dsi_panel *panel)
+bool oplus_panel_validate_reg_read(struct dsi_panel *panel)
 {
 	int i = 0, tmp = 0;
 	u32 *lenp, len = 0, cmd_count = 0;
@@ -59,7 +59,7 @@ bool oplus_display_validate_reg_read(struct dsi_panel *panel)
 	u32 cnt = 0;
 
 	if (!panel) {
-		DSI_ERR("Invalid params\n");
+		LCD_ERR("Invalid params\n");
 		return false;
 	}
 
@@ -96,7 +96,7 @@ bool oplus_display_validate_reg_read(struct dsi_panel *panel)
 					tmp++;
 				}
 
-				LCD_DEBUG_COMMON("[DEBUG]ESD check at index/group:[%d/%d] exp:[0x%02X] ret:[0x%02X] mode:[%u] matched:[%d]\n",
+				LCD_DEBUG("ESD check at index/group:[%d/%d] exp:[0x%02X] ret:[0x%02X] mode:[%u] matched:[%d]\n",
 						data_offset + data_index,
 						group_index,
 						config->status_value[value_offset],
@@ -113,7 +113,7 @@ bool oplus_display_validate_reg_read(struct dsi_panel *panel)
 
 		group_matched = (group_matched || group_mode0_matched) && group_mode1_matched;
 
-		LCD_DEBUG_COMMON("[DEBUG]ESD check matching: group:[%d] mode0/mode1/matched:[%d/%d/%d]\n",
+		LCD_DEBUG("ESD check matching: group:[%d] mode0/mode1/matched:[%d/%d/%d]\n",
 				group_index,
 				group_mode0_matched,
 				group_mode1_matched,

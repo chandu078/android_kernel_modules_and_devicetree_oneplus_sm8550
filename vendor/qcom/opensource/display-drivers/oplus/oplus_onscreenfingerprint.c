@@ -12,6 +12,7 @@
 #include "oplus_display_panel_seed.h"
 #include "oplus_bl.h"
 #include "oplus_display_interface.h"
+#include "oplus_display_panel_common.h"
 #include "sde_encoder_phys.h"
 #include "sde_trace.h"
 #include <linux/msm_drm_notify.h>
@@ -364,6 +365,8 @@ static int oplus_ofp_set_hbm_state(bool hbm_state)
 	OFP_INFO("oplus_ofp_hbm_state:%d\n", hbm_state);
 	OPLUS_OFP_TRACE_INT("oplus_ofp_hbm_state", p_oplus_ofp_params->hbm_state);
 
+	oplus_ofp_send_hbm_state_event(hbm_state);
+
 	OPLUS_OFP_TRACE_END("oplus_ofp_set_hbm_state");
 
 	OFP_DEBUG("end\n");
@@ -657,7 +660,7 @@ static int oplus_ofp_panel_cmd_set_nolock(void *dsi_panel, enum dsi_cmd_set_type
 		}
 
 		/* recovery loading effect mode */
-		seed_mode = oplus_display_get_seed_mode();
+		seed_mode = __oplus_get_seed_mode();
 		OPLUS_OFP_TRACE_BEGIN("dsi_panel_seed_mode");
 		rc = dsi_panel_seed_mode(panel, seed_mode);
 		if (rc) {
@@ -775,6 +778,22 @@ error:
 	OFP_DEBUG("end\n");
 
 	return rc;
+}
+
+int oplus_ofp_send_hbm_state_event(unsigned int hbm_state)
+{
+	OFP_DEBUG("start\n");
+
+	OPLUS_OFP_TRACE_BEGIN("oplus_ofp_send_hbm_state_event");
+
+	oplus_event_data_notifier_trigger(DRM_PANEL_EVENT_HBM_STATE, hbm_state, true);
+	OFP_INFO("DRM_PANEL_EVENT_HBM_STATE:%u\n", hbm_state);
+
+	OPLUS_OFP_TRACE_END("oplus_ofp_send_hbm_state_event");
+
+	OFP_DEBUG("end\n");
+
+	return 0;
 }
 
 /* wait te and delay some us */
@@ -1302,41 +1321,21 @@ int oplus_ofp_pressed_icon_status_update(void *sde_encoder_phys, unsigned int ir
 
 static int oplus_ofp_send_uiready_event(unsigned int ui_status)
 {
-	enum panel_event_notifier_tag tag = PANEL_EVENT_NOTIFICATION_PRIMARY;
 	enum panel_event_notification_type notify_type = DRM_PANEL_EVENT_ONSCREENFINGERPRINT_UI_DISAPPEAR;
-	struct dsi_display *display = oplus_display_get_current_display();
-	struct msm_drm_notifier notifier_data;
 
 	OFP_DEBUG("start\n");
 
-	if (!display) {
-		OFP_ERR("Invalid params\n");
-		return -EINVAL;
-	}
-
 	OPLUS_OFP_TRACE_BEGIN("oplus_ofp_send_uiready_event");
 
-	/* msm_drm_notifier_call_chain */
-	notifier_data.id = 0;
-	notifier_data.data = &ui_status;
-	msm_drm_notifier_call_chain(MSM_DRM_ONSCREENFINGERPRINT_EVENT, &notifier_data);
-	OFP_DEBUG("msm_drm_notifier_call_chain:%u\n", ui_status);
-
-	/* oplus_display_event_data_notifier_trigger */
-	if (!strcmp(display->display_type, "primary")) {
-		tag = PANEL_EVENT_NOTIFICATION_PRIMARY;
-	} else if (!strcmp(display->display_type, "secondary")) {
-		tag = PANEL_EVENT_NOTIFICATION_SECONDARY;
-	}
-
+	/* oplus notifier trigger */
 	if (ui_status == OPLUS_OFP_UI_READY) {
 		notify_type = DRM_PANEL_EVENT_ONSCREENFINGERPRINT_UI_READY;
 	} else {
 		notify_type = DRM_PANEL_EVENT_ONSCREENFINGERPRINT_UI_DISAPPEAR;
 	}
 
-	oplus_display_event_data_notifier_trigger(display, tag, notify_type, 0);
-	OFP_DEBUG("oplus_display_event_data_notifier_trigger:%u\n", notify_type);
+	oplus_event_data_notifier_trigger(notify_type, 0, true);
+	OFP_DEBUG("oplus_event_data_notifier_trigger:%u\n", notify_type);
 
 	OPLUS_OFP_TRACE_END("oplus_ofp_send_uiready_event");
 
@@ -1471,8 +1470,7 @@ bool oplus_ofp_backlight_filter(void *dsi_panel, unsigned int bl_level)
 
 	OPLUS_OFP_TRACE_BEGIN("oplus_ofp_backlight_filter");
 
-	hbm_enable = p_oplus_ofp_params->hbm_enable;
-	OFP_INFO("hbm_enable = %u or %u\n", hbm_enable, sde_connector_get_property(c_conn->base.state, CONNECTOR_PROP_HBM_ENABLE));
+	hbm_enable = sde_connector_get_property(c_conn->base.state, CONNECTOR_PROP_HBM_ENABLE);
 
 	if (oplus_ofp_get_hbm_state()) {
 		if (!bl_level) {
@@ -1988,13 +1986,19 @@ static int oplus_ofp_aod_off_set(void)
 		return 0;
 	}
 
-	if (!p_oplus_ofp_params) {
+	if (IS_ERR_OR_NULL(p_oplus_ofp_params)) {
 		OFP_ERR("Invalid params\n");
 		return -EINVAL;
 	}
 
 	if (oplus_ofp_get_hbm_state()) {
 		OFP_DEBUG("ignore aod off setting in hbm state\n");
+		return 0;
+	}
+
+	if (IS_ERR_OR_NULL(p_oplus_ofp_params->aod_off_set_wq)
+			|| IS_ERR_OR_NULL(&p_oplus_ofp_params->aod_off_set_work)) {
+		OFP_ERR("aod off work queue or work handler is NULL");
 		return 0;
 	}
 
