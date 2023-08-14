@@ -3218,6 +3218,11 @@ err_irq_fail:
 
 err_pdata_fail:
 err_memory_fail:
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	if (ret) {
+		pr_err_fb_fatal_delay("swr-mstr-ctrl.c  %s, ret=%d", __func__, ret);
+	}
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 	return ret;
 }
 

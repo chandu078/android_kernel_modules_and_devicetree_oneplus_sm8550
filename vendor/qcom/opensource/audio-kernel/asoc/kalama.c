@@ -46,11 +46,11 @@
 #include "feedback/oplus_audio_kernel_fb.h"
 #ifdef dev_err
 #undef dev_err
-#define dev_err dev_err_fb_delay
+#define dev_err dev_err_fb_fatal_delay
 #endif
 #ifdef dev_err_ratelimited
 #undef dev_err_ratelimited
-#define dev_err_ratelimited dev_err_fb_delay
+#define dev_err_ratelimited dev_err_ratelimited_fb_delay
 #endif
 #endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 
@@ -2197,6 +2197,11 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	/* change card status to ONLINE */
 	dev_dbg(&pdev->dev, "%s: setting snd_card to ONLINE\n", __func__);
 	snd_card_set_card_status(SND_CARD_STATUS_ONLINE);
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	pr_info("%s: event_id=%u, version:%s\n", __func__, \
+			OPLUS_AUDIO_EVENTID_AUDIO_KERNEL_ERR, AUDIO_KERNEL_FB_VERSION);
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 
 	return 0;
 err:

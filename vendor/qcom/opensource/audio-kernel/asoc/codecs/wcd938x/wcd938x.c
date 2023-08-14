@@ -36,7 +36,7 @@
 #endif
 #ifdef dev_err_ratelimited
 #undef dev_err_ratelimited
-#define dev_err_ratelimited dev_err_fb_delay
+#define dev_err_ratelimited dev_err_ratelimited_fb_delay
 #endif
 #ifdef pr_err
 #undef pr_err

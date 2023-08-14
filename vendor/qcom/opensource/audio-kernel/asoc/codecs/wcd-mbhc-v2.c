@@ -2226,6 +2226,11 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 	}
 	#endif /* OPLUS_ARCH_EXTENDS */
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	pr_info("%s: event_id=%u, version:%s\n", __func__, \
+			OPLUS_AUDIO_EVENTID_HEADSET_DET, HEADSET_ERR_FB_VERSION);
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
+
 	return rc;
 err:
 	dev_dbg(mbhc->component->dev, "%s: leave %d\n", __func__, rc);

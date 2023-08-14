@@ -14,6 +14,7 @@
 #include <sound/jack.h>
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
 #include <linux/pm_wakeup.h>
+#define HEADSET_ERR_FB_VERSION    "1.0.0"
 #endif
 
 #define TOMBAK_MBHC_NC	0
